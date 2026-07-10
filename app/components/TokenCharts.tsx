@@ -19,15 +19,15 @@ interface Props {
 /* ------------------------------------------------------------------ */
 
 const COLORS = {
-  input:  '#3b82f6',   // blue-500
-  output: '#10b981',   // emerald-500
-  cache:  '#f59e0b',   // amber-500
-  total:  '#6366f1',   // indigo-500
-  calls:  '#8b5cf6',   // violet-500
-  turns:  '#ec4899',   // pink-500
-  grid:   '#e5e7eb',   // gray-200
-  text:   '#6b7280',   // gray-500
-  axis:   '#d1d5db',   // gray-300
+  total:  '#2b2b2b',   // slate-800 — 最深，最突出
+  input:  '#424242',   // slate-700 — 暗青灰
+  calls:  '#525252',   // slate-900 — 近黑，调用次数专用
+  output: '#626262',   // slate-600 — 中青灰
+  turns:  '#727272',   // slate-500 — 轮次专用
+  cache:  '#828282',   // slate-400 — 最浅，缓存自然退后
+  grid:   '#e2e8f0',   // slate-200
+  text:   '#64748b',   // slate-500
+  axis:   '#cbd5e1',   // slate-300
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -36,7 +36,7 @@ const COLORS = {
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card>
+    <Card className='border border-gray-200'>
       <CardHeader>
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
@@ -208,8 +208,8 @@ function makeHitRateChart(labels: string[], data: DailyEntry[]): EChartsOption {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(245, 158, 11, 0.25)' },
-              { offset: 1, color: 'rgba(245, 158, 11, 0.02)' },
+              { offset: 0, color: 'rgba(148, 163, 184, 0.25)' },
+              { offset: 1, color: 'rgba(148, 163, 184, 0.02)' },
             ],
           },
         },

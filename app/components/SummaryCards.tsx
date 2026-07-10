@@ -87,7 +87,7 @@ export function SummaryCards({ data }: Props) {
   return (
     <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
       {stats.map((s) => (
-        <Card key={s.label} className="gap-0 px-4 py-3.5">
+        <Card key={s.label} className="gap-0 px-4 py-3.5 shadow-none">
           <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {s.label}
           </div>

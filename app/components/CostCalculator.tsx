@@ -73,7 +73,7 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
 const ROW_META: Record<UsageKind, Pick<CostRow, 'label' | 'hint' | 'color'>> = {
   cache: {
     label: '缓存命中',
-    hint: '复用上下文，通常是最低成本来源',
+    hint: '复用上下文',
     color: 'bg-amber-500',
   },
   input: {
@@ -83,12 +83,12 @@ const ROW_META: Record<UsageKind, Pick<CostRow, 'label' | 'hint' | 'color'>> = {
   },
   cache_write: {
     label: '缓存写入',
-    hint: '将未缓存内容写入缓存，动态价格缺失时按模型规则兜底',
+    hint: '将未缓存内容写入缓存',
     color: 'bg-purple-500',
   },
   output: {
     label: '输出',
-    hint: '模型生成内容，通常是主要成本来源',
+    hint: '模型生成内容',
     color: 'bg-emerald-500',
   },
 };
@@ -326,7 +326,7 @@ export function CostCalculator({ totals, scope }: Props) {
           <div className="relative p-6 sm:p-7">
             <div className="absolute right-6 top-6 h-20 w-20 rounded-full bg-blue-50 blur-2xl" />
             <div className="relative">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
                 {scope.label}
               </div>
               <div className="text-sm text-muted-foreground">预计总费用</div>
@@ -411,7 +411,7 @@ export function CostCalculator({ totals, scope }: Props) {
         </Panel>
 
         <Panel title="调整计价参数" subtitle="单价单位均为当前币种 / 1M tokens。手动修改后会进入自定义价格。">
-          <Card className="mb-5 flex flex-wrap items-center gap-3 p-3 bg-gray-50">
+          <Card className="mb-5 flex flex-wrap items-center gap-3 p-3 rounded-lg ring-0 shadow-none bg-gray-100">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               币种
             </label>
@@ -508,7 +508,7 @@ function Panel({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="gap-1 p-3">
+    <Card className="gap-1 p-3 rounded-lg ring-0 shadow-none bg-gray-100">
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
       <div className="truncate text-sm font-semibold">{value}</div>
     </Card>
@@ -529,7 +529,7 @@ function PriceInput({
   symbol: string;
 }) {
   return (
-    <Card className="grid gap-3 p-3 sm:grid-cols-[1fr_170px] sm:items-center">
+    <Card className="grid gap-3 p-3 sm:grid-cols-[1fr_170px] sm:items-center rounded-lg shadow-none">
       <div>
         <div className="text-sm font-medium">{label}</div>
         <div className="mt-0.5 text-xs text-muted-foreground">参与计算：{detail}</div>
@@ -551,7 +551,7 @@ function PriceInput({
 
 function CostBreakdownCard({ row, currency }: { row: CostRow; currency: Currency }) {
   return (
-    <Card className="gap-4 p-4">
+    <Card className="gap-4 p-4 shadow-none rounded-lg">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-gray-900">{row.label}</div>
