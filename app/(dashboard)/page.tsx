@@ -8,10 +8,17 @@ export default function ChartsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-900 mb-1">Cursor Token 用量趋势</h1>
-      <p className="text-sm text-gray-400 mb-6">
-        数据实时来自 usage.json 文件 · 刷新页面获取最新
-      </p>
+      <div className="mb-6">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+          Usage monitor
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+          Cursor Token 用量趋势
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          用量会在每次扫描时按日期自动聚合，图表与汇总始终基于同一份本地记录。
+        </p>
+      </div>
       <Dashboard initialData={initialData} />
     </div>
   );

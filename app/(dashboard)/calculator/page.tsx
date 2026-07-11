@@ -3,7 +3,34 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { DailyEntry } from '@/lib/data';
+import {
+  CheckCircle2Icon,
+  FileJsonIcon,
+  PencilLineIcon,
+} from 'lucide-react';
 import { CostCalculator } from '../../components/CostCalculator';
+import { Input } from '../../components/ui/input';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '../../components/ui/card';
+
+type TokenField = 'input' | 'output' | 'cache';
+
+interface Totals {
+  input: number;
+  output: number;
+  cache: number;
+}
+
+const TOKEN_LABELS: Record<TokenField, { label: string; hint: string }> = {
+  cache: { label: '缓存命中', hint: 'cache_read_tokens' },
+  input: { label: '输入', hint: 'input_tokens' },
+  output: { label: '输出', hint: 'output_tokens' },
+};
 
 function sumDailyEntries(entries: DailyEntry[]) {
   return entries.reduce(
@@ -23,6 +50,10 @@ function CalculatorContent() {
   const [data, setData] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // manual token input state
+  const [isManual, setIsManual] = useState(false);
+  const [manualTokens, setManualTokens] = useState<Totals>({ input: 0, output: 0, cache: 0 });
 
   useEffect(() => {
     fetch('/api/daily')
@@ -45,7 +76,18 @@ function CalculatorContent() {
     [data, dateParam],
   );
 
+  const autoTotals = useMemo(() => sumDailyEntries(filtered), [filtered]);
+
   const scope = useMemo(() => {
+    if (isManual) {
+      return {
+        title: '成本估算',
+        label: '手动输入',
+        detail: '手动输入 Token 用量进行估算',
+        days: 0,
+      };
+    }
+
     if (dateParam) {
       return {
         title: `成本估算 — ${dateParam}`,
@@ -73,9 +115,13 @@ function CalculatorContent() {
       detail: `${start} – ${end}`,
       days: filtered.length,
     };
-  }, [dateParam, filtered]);
+  }, [dateParam, filtered, isManual]);
 
-  const totals = useMemo(() => sumDailyEntries(filtered), [filtered]);
+  const totals = isManual ? manualTokens : autoTotals;
+
+  const updateManualToken = (field: TokenField, value: number) => {
+    setManualTokens((prev) => ({ ...prev, [field]: value }));
+  };
 
   if (loading) {
     return (
@@ -101,6 +147,104 @@ function CalculatorContent() {
           用模型单价套算实际 Token 消耗，快速判断成本构成。
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <div>
+            <CardTitle className="text-base">Token 数据来源</CardTitle>
+            <CardDescription>
+              选择本次成本估算使用的用量数据。
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              aria-pressed={!isManual}
+              onClick={() => setIsManual(false)}
+              className={`rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                !isManual
+                  ? 'border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/15'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${!isManual ? 'bg-white/15' : 'bg-slate-100 text-slate-700'}`}>
+                  <FileJsonIcon className="size-4" />
+                </span>
+                <span>
+                  <span className="flex items-center gap-2 font-semibold">
+                    自动汇总本地记录
+                    {!isManual && <CheckCircle2Icon className="size-4" />}
+                  </span>
+                  <span className={`mt-1 block text-sm ${!isManual ? 'text-slate-300' : 'text-slate-500'}`}>
+                    扫描 usage.json 与 usage.json*，按日期合并全部 Token 用量。
+                  </span>
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={isManual}
+              onClick={() => setIsManual(true)}
+              className={`rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                isManual
+                  ? 'border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/15'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${isManual ? 'bg-white/15' : 'bg-slate-100 text-slate-700'}`}>
+                  <PencilLineIcon className="size-4" />
+                </span>
+                <span>
+                  <span className="flex items-center gap-2 font-semibold">
+                    手动填写 Token
+                    {isManual && <CheckCircle2Icon className="size-4" />}
+                  </span>
+                  <span className={`mt-1 block text-sm ${isManual ? 'text-slate-300' : 'text-slate-500'}`}>
+                    输入任意 Token 数量，用于预估单次任务或尚未写入本地记录的用量。
+                  </span>
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {!isManual && (
+            <div className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+              读取范围：<code className="font-mono text-xs text-slate-800">USAGE_DATA_DIR/usage.json*</code>
+              <span className="mx-2 text-slate-300">·</span>
+              刷新页面后重新扫描
+            </div>
+          )}
+
+          {isManual && (
+            <div className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+              {(Object.keys(TOKEN_LABELS) as TokenField[]).map((field) => (
+                <div key={field} className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {TOKEN_LABELS[field].label}
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={manualTokens[field] || ''}
+                    placeholder={TOKEN_LABELS[field].hint}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateManualToken(field, v === '' ? 0 : parseInt(v, 10));
+                    }}
+                    className="font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <CostCalculator totals={totals} scope={scope} />
     </div>
