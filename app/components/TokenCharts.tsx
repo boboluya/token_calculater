@@ -283,8 +283,6 @@ function makeCallsTurnsChart(labels: string[], data: DailyEntry[]): EChartsOptio
 /* ------------------------------------------------------------------ */
 
 export function TokenCharts({ data }: Props) {
-  if (!data.length) return null;
-
   const labels = data.map((d) => d.date.slice(5)); // MM-DD
 
   return (

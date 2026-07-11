@@ -18,14 +18,6 @@ interface Props {
 }
 
 export function SummaryCards({ data }: Props) {
-  if (!data.length) {
-    return (
-      <Card className="border-red-200 bg-red-50 text-red-600">
-      <CardContent>暂无每日数据。</CardContent>
-    </Card>
-    );
-  }
-
   const total = data.reduce(
     (acc, d) => ({
       input: acc.input + d.input_tokens,
@@ -39,13 +31,14 @@ export function SummaryCards({ data }: Props) {
   );
 
   const days = data.length;
-  const avg = total.totalTokens / days;
+  const avg = days > 0 ? total.totalTokens / days : 0;
+  const dateRange = days > 0 ? `${data[0].date} – ${data[data.length - 1].date}` : '暂无数据';
 
   const stats = [
     {
       label: "天数",
       value: days.toString(),
-      sub: `${data[0].date} – ${data[data.length - 1].date}`,
+      sub: dateRange,
     },
     {
       label: "Token 总量",
@@ -60,17 +53,17 @@ export function SummaryCards({ data }: Props) {
     {
       label: "输入",
       value: fmt(total.input),
-      sub: `占比 ${((total.input / total.totalTokens) * 100).toFixed(0)}%`,
+      sub: `占比 ${total.totalTokens > 0 ? ((total.input / total.totalTokens) * 100).toFixed(0) : 0}%`,
     },
     {
       label: "输出",
       value: fmt(total.output),
-      sub: `占比 ${((total.output / total.totalTokens) * 100).toFixed(0)}%`,
+      sub: `占比 ${total.totalTokens > 0 ? ((total.output / total.totalTokens) * 100).toFixed(0) : 0}%`,
     },
     {
       label: "缓存命中",
       value: fmt(total.cache),
-      sub: `占比 ${((total.cache / total.totalTokens) * 100).toFixed(0)}%`,
+      sub: `占比 ${total.totalTokens > 0 ? ((total.cache / total.totalTokens) * 100).toFixed(0) : 0}%`,
     },
     {
       label: "调用次数",

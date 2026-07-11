@@ -4,12 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { DailyEntry } from '@/lib/data';
 import { CostCalculator } from '../../components/CostCalculator';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from '../../components/ui/card';
 
 function sumDailyEntries(entries: DailyEntry[]) {
   return entries.reduce(
@@ -108,22 +102,7 @@ function CalculatorContent() {
         </p>
       </div>
 
-      {!filtered.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>没有可计算的数据</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {dateParam
-                ? `当前数据集中没有 ${dateParam} 的记录，请返回看板选择已有日期。`
-                : '当前数据源没有返回每日用量，计算器需要 input、output 和 cache 三类 Token。'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <CostCalculator totals={totals} scope={scope} />
-      )}
+      <CostCalculator totals={totals} scope={scope} />
     </div>
   );
 }

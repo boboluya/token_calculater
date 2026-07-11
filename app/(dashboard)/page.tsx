@@ -3,7 +3,8 @@ import { gatherDailyTotals } from '@/lib/data';
 
 export default function ChartsPage() {
   const dataDir = process.env.USAGE_DATA_DIR;
-  const initialData = dataDir ? gatherDailyTotals(dataDir) : [];
+  // null = no data source (needs client fetch), [] = data source exists but empty
+  const initialData = dataDir ? gatherDailyTotals(dataDir) : null;
 
   return (
     <div>

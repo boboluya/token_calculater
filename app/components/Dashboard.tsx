@@ -6,16 +6,17 @@ import { SummaryCards } from './SummaryCards';
 import { TokenCharts } from './TokenCharts';
 
 interface Props {
-  initialData: DailyEntry[];
+  initialData: DailyEntry[] | null;
 }
 
 export function Dashboard({ initialData }: Props) {
-  const [data, setData] = useState<DailyEntry[]>(initialData);
-  const [loading, setLoading] = useState(!initialData.length);
+  // null = no server data source; [] = empty data from source
+  const [data, setData] = useState<DailyEntry[]>(initialData ?? []);
+  const [loading, setLoading] = useState(initialData === null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialData.length > 0) return;
+    if (initialData !== null) return; // server already provided data (even if empty)
 
     fetch('/api/daily')
       .then((res) => {
