@@ -27,30 +27,18 @@ const KEYS = [
   'total_tokens',
 ] as const;
 
-export function gatherDailyTotals(contents: string[]): DailyEntry[] {
+export function gatherDailyTotals(entries: DailyEntry[]): DailyEntry[] {
   const daily: Record<string, DailyEntry> = {};
 
-  for (const content of contents) {
-    try {
-      const data: unknown = JSON.parse(content);
-      const entries =
-        typeof data === 'object' && data !== null && Array.isArray((data as { daily?: unknown }).daily)
-          ? (data as { daily: Array<Record<string, unknown>> }).daily
-          : [];
+  for (const entry of entries) {
+    if (typeof entry.date !== 'string' || !entry.date) continue;
 
-      for (const entry of entries) {
-        if (typeof entry.date !== 'string' || !entry.date) continue;
-
-        daily[entry.date] ??= EMPTY_ENTRY(entry.date);
-        for (const key of KEYS) {
-          const value = entry[key];
-          if (typeof value === 'number' && Number.isFinite(value)) {
-            daily[entry.date][key] += value;
-          }
-        }
+    daily[entry.date] ??= EMPTY_ENTRY(entry.date);
+    for (const key of KEYS) {
+      const value = entry[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        daily[entry.date][key] += value;
       }
-    } catch {
-      // A malformed file must not prevent other history files from loading.
     }
   }
 

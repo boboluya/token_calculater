@@ -17,6 +17,8 @@ export function Dashboard() {
         loading={source.loading}
         error={source.error}
         savedAt={source.savedAt}
+        assistantId={source.assistantId}
+        onAssistantChange={source.setAssistant}
         onSelect={source.selectDirectory}
       />
       {source.directoryInput}

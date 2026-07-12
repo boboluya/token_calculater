@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Cursor Token 用量趋势",
+  title: "AI 助手 Token 用量分析",
   description: "Token 用量分析看板",
 };
 

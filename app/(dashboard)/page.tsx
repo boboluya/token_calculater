@@ -11,10 +11,10 @@ export default function ChartsPage() {
           Usage monitor
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
-          Cursor Token 用量趋势
+          Token 用量趋势
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          选择本地目录后，浏览器会读取 history/ 中的用量记录并按日期聚合。
+          目前支持解析 Cursor 本地助手（~/.cursor-local-assistant-v2）的用量记录，更多工具接入中。
         </p>
       </div>
       <Dashboard />

@@ -49,7 +49,7 @@ function CalculatorContent() {
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date');
 
-  const { data, loading, error, directoryName, selectDirectory } = useUsageData();
+  const { data, loading, error, directoryName, assistantId, selectDirectory } = useUsageData();
 
   const [isManual, setIsManual] = useState(false);
   const [manualTokens, setManualTokens] = useState<Totals>({ input: 0, output: 0, cache: 0 });
@@ -199,7 +199,7 @@ function CalculatorContent() {
             <div className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
               {directoryName ? (
                 <>
-                  数据来源：<code className="font-mono text-xs text-slate-800">{directoryName}/history/usage.json*</code>
+                  数据来源：<code className="font-mono text-xs text-slate-800">{directoryName}/...（{assistantId}）</code>
                 </>
               ) : (
                 <button
