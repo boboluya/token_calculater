@@ -215,6 +215,7 @@ export function CostCalculator({ totals, scope }: Props) {
   const selectedPresetIdRef = useRef<string>(DEFAULT_PRICE_PRESET_ID);
   const currencyRef = useRef<Currency>('CNY');
   const rateRef = useRef(DEFAULT_RATE);
+  const summarySentinelRef = useRef<HTMLDivElement>(null);
   const fallbackDefault = FALLBACK_PRICE_PRESETS.find((preset) => preset.id === DEFAULT_PRICE_PRESET_ID) ?? FALLBACK_PRICE_PRESETS[0];
 
   const [presets, setPresets] = useState<PricePreset[]>(FALLBACK_PRICE_PRESETS);
@@ -228,6 +229,7 @@ export function CostCalculator({ totals, scope }: Props) {
   const [unitPrices, setUnitPrices] = useState<UnitPrices>(() =>
     presetToUnitPrices(fallbackDefault, 'CNY', DEFAULT_RATE),
   );
+  const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
 
   const presetsById = useMemo(() => indexPresets(presets), [presets]);
   const vendorGroups = useMemo(() => buildVendorGroups(presets), [presets]);
@@ -287,6 +289,19 @@ export function CostCalculator({ totals, scope }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    const element = summarySentinelRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsSummaryCollapsed(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const selectCurrency = (nextCurrency: Currency) => {
     if (nextCurrency === currency) return;
 
@@ -321,6 +336,21 @@ export function CostCalculator({ totals, scope }: Props) {
 
   return (
     <div className="space-y-5">
+      <div ref={summarySentinelRef} className="h-px" aria-hidden="true" />
+      {isSummaryCollapsed ? (
+        <Card className="fixed inset-x-4 top-4 z-20 overflow-hidden p-0 shadow-md shadow-slate-950/10 md:left-[calc(var(--sidebar-width)+2rem)] md:right-8">
+          <div className="flex h-18 items-center justify-between gap-6 px-5 sm:px-7">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-muted-foreground">预计总费用</div>
+              <div className="truncate text-sm text-slate-500">{modelMetric} · {currency}</div>
+            </div>
+            <div className="shrink-0 text-right font-mono text-2xl font-semibold tracking-tight text-slate-950">
+              {formatMoney(totalCost, currency)}
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="overflow-hidden p-0">
         <div className="grid gap-0 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="relative p-6 sm:p-7">
