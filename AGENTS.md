@@ -18,47 +18,53 @@ Next.js 16.2.10 + React 19.2.4 + TypeScript 5.x + Tailwind CSS 4.x + ECharts (ec
 app/                          # App Router（UI + API 在一起）
 ├── layout.tsx                # 根布局：HTML 骨架、字体、metadata
 ├── globals.css                # Tailwind 入口 + number input 样式重置
-├── (dashboard)/              # 路由组，共享 Sidebar layout
-│   ├── layout.tsx            # flex 容器：<Sidebar /> + <main>{children}</main>
-│   ├── page.tsx              # / → Charts 看板（服务端预取 initialData）
-│   └── calculator/page.tsx   # /calculator → 成本计算器
-├── api/daily/route.ts        # GET /api/daily → 聚合每日数据 JSON
+├── (dashboard)/              # 路由组，共享 Sidebar layout + UsageDataProvider
+│   ├── layout.tsx            # UsageDataProvider > SidebarProvider > Sidebar + main
+│   ├── page.tsx              # / → Charts 看板（从 Provider 获取数据）
+│   ├── table/page.tsx        # /table → 月度明细表（从 Provider 获取数据）
+│   └── calculator/page.tsx   # /calculator → 成本计算器（从 Provider 获取数据）
+├── api/pricing/              # 定价 API（pricing/sync 等）
 └── components/               # 全部为 "use client"
     ├── Sidebar.tsx           # 导航栏 + 收缩切换（local state）
-    ├── Dashboard.tsx         # 看板控制器，接收 initialData 或 fallback fetch
+    ├── UsageDataProvider.tsx # 数据源 Context：目录选择 → 筛选 history/usage.json* → 调用 gatherDailyTotals
+    ├── Dashboard.tsx         # 看板控制器，从 Provider 获取数据
+    ├── UsageDataSource.tsx   # 数据源状态卡片：显示目录名/文件数/天数/状态
     ├── SummaryCards.tsx       # KPI 卡片：总数/均值/百分比，导出 fmt/fmtFull
     ├── TokenCharts.tsx        # 4 张 ECharts 图表（total/breakdown/in-out/calls-turns）
     └── CostCalculator.tsx    # 预设单价 + 可编辑输入 + 成本汇总
 
-lib/data.ts                   # 服务端：读 USAGE_DATA_DIR，扫描 usage.json*，聚合排序
+lib/data.ts                   # 纯函数：接收字符串数组，解析 JSON、按日期合并、排序
 ```
 
 ## 路由与渲染模式
 
 | 路由 | 文件 | 模式 |
 |------|------|------|
-| `/` | `(dashboard)/page.tsx` | 服务端预取 initialData → Dashboard，缺失时客户端 fetch fallback |
-| `/calculator` | `(dashboard)/calculator/page.tsx` | 纯客户端 fetch /api/daily |
-| `/api/daily` | `api/daily/route.ts` | GET API Route，返回 DailyEntry[] JSON |
+| `/` | `(dashboard)/page.tsx` | 纯客户端，从 UsageDataProvider 获取数据 |
+| `/calculator` | `(dashboard)/calculator/page.tsx` | 纯客户端，从 UsageDataProvider 获取数据 |
+| `/table` | `(dashboard)/table/page.tsx` | 纯客户端，从 UsageDataProvider 获取数据 |
 
 ## 数据流
 
 ```
-USAGE_DATA_DIR/usage.json* → lib/data.ts(聚合排序) → /api/daily
-                                                          ↓
-                                      / 页(server prefetch)   /calculator 页(client fetch)
-                                          ↓                        ↓
-                                      Dashboard              汇总 total → CostCalculator
-                                      → SummaryCards
-                                      → TokenCharts
+用户选择本地目录 → UsageDataProvider(筛选 history/usage.json*)
+                         ↓
+         lib/data.ts gatherDailyTotals(strings[])  ← 纯函数，可复用
+                         ↓
+         UsageDataContext(data, loading, error, directoryName...)
+                         ↓
+        ┌────────────────┼──────────────────┐
+        ↓                ↓                  ↓
+    Dashboard        Table page        Calculator page
+    → SummaryCards   → 月度明细表       → CostCalculator
+    → TokenCharts
 ```
 
 ## 状态管理
 
-无全局 store、无 context、无 React Query 等请求库。纯本地 useState：
-- Sidebar: `collapsed`
-- Dashboard / Calculator 页: `data`, `loading`, `error`
-- CostCalculator: preset + price 输入
+- `UsageDataProvider`（Context）：目录选择、数据加载、解析状态，所有子页面共享
+- Sidebar: `collapsed`（useSidebar）
+- CostCalculator: preset + price 输入（local useState）
 
 ## 关键依赖
 

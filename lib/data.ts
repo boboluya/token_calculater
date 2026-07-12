@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
-
 export interface DailyEntry {
   date: string;
   provider_calls: number;
@@ -30,33 +27,31 @@ const KEYS = [
   'total_tokens',
 ] as const;
 
-export function gatherDailyTotals(dataDir: string): DailyEntry[] {
+export function gatherDailyTotals(contents: string[]): DailyEntry[] {
   const daily: Record<string, DailyEntry> = {};
 
-  try {
-    const files = readdirSync(dataDir).filter((f) =>
-      f.startsWith('usage.json')
-    );
-    for (const file of files.sort()) {
-      try {
-        const content = readFileSync(join(dataDir, file), 'utf-8');
-        const data = JSON.parse(content);
-        const entries: Array<Record<string, unknown>> = data.daily || [];
-        for (const entry of entries) {
-          const date = entry.date as string;
-          if (!daily[date]) {
-            daily[date] = EMPTY_ENTRY(date);
-          }
-          for (const k of KEYS) {
-            daily[date][k] += (entry[k] as number) || 0;
+  for (const content of contents) {
+    try {
+      const data: unknown = JSON.parse(content);
+      const entries =
+        typeof data === 'object' && data !== null && Array.isArray((data as { daily?: unknown }).daily)
+          ? (data as { daily: Array<Record<string, unknown>> }).daily
+          : [];
+
+      for (const entry of entries) {
+        if (typeof entry.date !== 'string' || !entry.date) continue;
+
+        daily[entry.date] ??= EMPTY_ENTRY(entry.date);
+        for (const key of KEYS) {
+          const value = entry[key];
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            daily[entry.date][key] += value;
           }
         }
-      } catch {
-        // Skip malformed or unreadable files
       }
+    } catch {
+      // A malformed file must not prevent other history files from loading.
     }
-  } catch {
-    // Directory doesn't exist or can't be read — return empty
   }
 
   return Object.values(daily).sort((a, b) => a.date.localeCompare(b.date));

@@ -1,13 +1,15 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { DailyEntry } from '@/lib/data';
 import {
   CheckCircle2Icon,
   FileJsonIcon,
+  FolderOpenIcon,
   PencilLineIcon,
 } from 'lucide-react';
+import { useUsageData } from '../../components/UsageDataProvider';
 import { CostCalculator } from '../../components/CostCalculator';
 import { Input } from '../../components/ui/input';
 import {
@@ -47,29 +49,10 @@ function CalculatorContent() {
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date');
 
-  const [data, setData] = useState<DailyEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, directoryName, selectDirectory } = useUsageData();
 
-  // manual token input state
   const [isManual, setIsManual] = useState(false);
   const [manualTokens, setManualTokens] = useState<Totals>({ input: 0, output: 0, cache: 0 });
-
-  useEffect(() => {
-    fetch('/api/daily')
-      .then((res) => {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      })
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch((e: Error) => {
-        setError(e.message);
-        setLoading(false);
-      });
-  }, []);
 
   const filtered = useMemo(
     () => (dateParam ? data.filter((d) => d.date === dateParam) : data),
@@ -179,7 +162,7 @@ function CalculatorContent() {
                     {!isManual && <CheckCircle2Icon className="size-4" />}
                   </span>
                   <span className={`mt-1 block text-sm ${!isManual ? 'text-slate-300' : 'text-slate-500'}`}>
-                    扫描 usage.json 与 usage.json*，按日期合并全部 Token 用量。
+                    使用已选择目录的用量记录，按日期合并全部 Token 用量。
                   </span>
                 </span>
               </div>
@@ -214,9 +197,20 @@ function CalculatorContent() {
 
           {!isManual && (
             <div className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-              读取范围：<code className="font-mono text-xs text-slate-800">USAGE_DATA_DIR/usage.json*</code>
-              <span className="mx-2 text-slate-300">·</span>
-              刷新页面后重新扫描
+              {directoryName ? (
+                <>
+                  数据来源：<code className="font-mono text-xs text-slate-800">{directoryName}/history/usage.json*</code>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={selectDirectory}
+                  className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:text-blue-700"
+                >
+                  <FolderOpenIcon className="size-3.5" />
+                  选择本地目录
+                </button>
+              )}
             </div>
           )}
 

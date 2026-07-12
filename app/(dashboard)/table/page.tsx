@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { DailyEntry } from "@/lib/data";
 import { fmt, fmtFull } from "../../components/SummaryCards";
+import { useUsageData } from "../../components/UsageDataProvider";
 import {
   Select,
   SelectContent,
@@ -155,36 +156,8 @@ function EmptyState({ selectedMonth }: { selectedMonth: string }) {
 }
 
 export default function TablePage() {
-  const [data, setData] = useState<DailyEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useUsageData();
   const [selectedMonth, setSelectedMonth] = useState("");
-
-  useEffect(() => {
-    let active = true;
-
-    fetch("/api/daily")
-      .then((res) => {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json() as Promise<DailyEntry[]>;
-      })
-      .then((d) => {
-        if (!active) return;
-        setData(d);
-      })
-      .catch((e: Error) => {
-        if (!active) return;
-        setError(e.message);
-      })
-      .finally(() => {
-        if (!active) return;
-        setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const months = useMemo(() => {
     const s = new Set(data.map((d) => d.date.substring(0, 7)));

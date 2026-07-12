@@ -1,10 +1,8 @@
+'use client';
+
 import { Dashboard } from '../components/Dashboard';
-import { gatherDailyTotals } from '@/lib/data';
 
 export default function ChartsPage() {
-  const dataDir = process.env.USAGE_DATA_DIR;
-  // null = no data source (needs client fetch), [] = data source exists but empty
-  const initialData = dataDir ? gatherDailyTotals(dataDir) : null;
 
   return (
     <div>
@@ -16,10 +14,10 @@ export default function ChartsPage() {
           Cursor Token 用量趋势
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          用量会在每次扫描时按日期自动聚合，图表与汇总始终基于同一份本地记录。
+          选择本地目录后，浏览器会读取 history/ 中的用量记录并按日期聚合。
         </p>
       </div>
-      <Dashboard initialData={initialData} />
+      <Dashboard />
     </div>
   );
 }
