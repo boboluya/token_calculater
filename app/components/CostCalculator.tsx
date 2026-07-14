@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { DEFAULT_PRICE_PRESET_ID, FALLBACK_PRICE_PRESETS } from '@/lib/pricing/fallback';
 import type {
   PricePreset,
@@ -92,6 +93,19 @@ const ROW_META: Record<UsageKind, Pick<CostRow, 'label' | 'hint' | 'color'>> = {
     color: 'bg-emerald-500',
   },
 };
+
+/** 厂商名称 → public/provider_icon/ 下的图标文件路径 */
+const VENDOR_ICONS: Record<string, string> = {
+  openai: '/provider_icon/openai.svg',
+  anthropic: '/provider_icon/claudecode.png',
+  deepseek: '/provider_icon/DeepSeek.svg',
+  cursor: '/provider_icon/cursor.png',
+  opencode: '/provider_icon/opencode.ico',
+};
+
+function vendorIcon(vendor: string): string | undefined {
+  return VENDOR_ICONS[vendor.toLowerCase()];
+}
 
 function buildVendorGroups(presets: PricePreset[]): [string, PricePreset[]][] {
   const groups = new Map<string, PricePreset[]>();
@@ -230,6 +244,7 @@ export function CostCalculator({ totals, scope }: Props) {
     presetToUnitPrices(fallbackDefault, 'CNY', DEFAULT_RATE),
   );
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
+  const [activeVendor, setActiveVendor] = useState<string | null>(null);
 
   const presetsById = useMemo(() => indexPresets(presets), [presets]);
   const vendorGroups = useMemo(() => buildVendorGroups(presets), [presets]);
@@ -319,6 +334,10 @@ export function CostCalculator({ totals, scope }: Props) {
     setUnitPrices(presetToUnitPrices(preset, currency, rate));
   };
 
+  const selectVendor = (vendor: string) => {
+    setActiveVendor(vendor);
+  };
+
   const updatePrice = (key: UsageKind, value: number) => {
     selectedPresetIdRef.current = '';
     setSelectedPresetId('');
@@ -333,6 +352,12 @@ export function CostCalculator({ totals, scope }: Props) {
       if (preset) setUnitPrices(presetToUnitPrices(preset, 'CNY', value));
     }
   };
+
+  const resolvedVendor = (activeVendor ?? vendorGroups[0]?.[0] ?? null) as string | null;
+  const activeModels =
+    resolvedVendor != null
+      ? vendorGroups.find(([v]) => v === resolvedVendor)?.[1] ?? []
+      : [];
 
   return (
     <div className="space-y-5">
@@ -405,38 +430,68 @@ export function CostCalculator({ totals, scope }: Props) {
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel title="选择模型预设" subtitle="预设价格以 USD / 1M tokens 为基准，切换币种时自动换算。">
           <div className="max-h-[520px] space-y-4 overflow-y-auto pr-1">
-            {vendorGroups.map(([vendor, modelPresets]) => (
-              <div key={vendor}>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  {vendor}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {modelPresets.map((preset) => {
-                    const active = preset.id === selectedPresetId;
+            {/* 厂商选择按钮 */}
+            <div className="flex flex-wrap gap-2">
+              {vendorGroups.map(([vendor]) => {
+                const selected = vendor === resolvedVendor;
+                const icon = vendorIcon(vendor);
 
-                    return (
-                      <button
-                        key={preset.id}
-                        onClick={() => selectPreset(preset.id)}
-                        className={`rounded-xl border p-3 text-left transition-colors ${
-                          active
-                            ? 'border-blue-200 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="truncate text-sm font-semibold">{preset.label}</div>
-                        <div className="mt-1 truncate font-mono text-[11px] text-gray-400">
-                          {preset.id}
-                        </div>
-                        <div className="mt-1 font-mono text-xs text-gray-400">
-                          {CURRENCY_SYMBOLS.USD}{formatPrice(preset.pricesUsdPer1M.input)}/M in · {CURRENCY_SYMBOLS.USD}{formatPrice(preset.pricesUsdPer1M.output)}/M out
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                return (
+                  <button
+                    key={vendor}
+                    type="button"
+                    onClick={() => selectVendor(vendor)}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                      selected
+                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-900/15'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700'
+                    }`}
+                  >
+                    {icon && (
+                      <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded bg-white">
+                        <Image
+                          src={icon}
+                          alt={vendor}
+                          width={20}
+                          height={20}
+                          className="size-4 object-contain"
+                        />
+                      </span>
+                    )}
+                    {vendor}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 选中厂商的模型卡片 */}
+            {activeModels.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {activeModels.map((preset) => {
+                  const active = preset.id === selectedPresetId;
+
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => selectPreset(preset.id)}
+                      className={`rounded-xl border p-3 text-left transition-colors ${
+                        active
+                          ? 'border-blue-200 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="truncate text-sm font-semibold">{preset.label}</div>
+                      <div className="mt-1 truncate font-mono text-[11px] text-gray-400">
+                        {preset.id}
+                      </div>
+                      <div className="mt-1 font-mono text-xs text-gray-400">
+                        {CURRENCY_SYMBOLS.USD}{formatPrice(preset.pricesUsdPer1M.input)}/M in · {CURRENCY_SYMBOLS.USD}{formatPrice(preset.pricesUsdPer1M.output)}/M out
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         </Panel>
 

@@ -3,22 +3,11 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { DailyEntry } from '@/lib/data';
-import {
-  CheckCircle2Icon,
-  FileJsonIcon,
-  FolderOpenIcon,
-  PencilLineIcon,
-} from 'lucide-react';
+import { FolderOpenIcon } from 'lucide-react';
 import { useUsageData } from '../../components/UsageDataProvider';
 import { CostCalculator } from '../../components/CostCalculator';
 import { Input } from '../../components/ui/input';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '../../components/ui/card';
+import { ToggleGroup } from '../../components/ui/toggle-group';
 
 type TokenField = 'input' | 'output' | 'cache';
 
@@ -114,131 +103,79 @@ function CalculatorContent() {
 
   if (error) {
     return (
-      <Card className="border-red-200 bg-red-50 text-red-600">
-        <CardContent>数据加载失败：{error}</CardContent>
-      </Card>
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        数据加载失败：{error}
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-          {scope.title}
-        </h1>
-        <p className="text-sm text-gray-400">
-          用模型单价套算实际 Token 消耗，快速判断成本构成。
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
+            {scope.title}
+          </h1>
+          <p className="text-sm text-gray-400">
+            用模型单价套算实际 Token 消耗，快速判断成本构成。
+          </p>
+        </div>
+
+        <ToggleGroup
+          options={[
+            { value: 'auto', label: '自动汇总' },
+            { value: 'manual', label: '手动填写' },
+          ]}
+          value={isManual ? 'manual' : 'auto'}
+          onChange={(v) => setIsManual(v === 'manual')}
+        />
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <div>
-            <CardTitle className="text-base">Token 数据来源</CardTitle>
-            <CardDescription>
-              选择本次成本估算使用的用量数据。
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
+      {!isManual && (
+        <div className="text-sm text-gray-500">
+          {directoryName ? (
+            <span>
+              数据来源{' '}
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-700">
+                {directoryName}/...（{assistantId}）
+              </code>
+            </span>
+          ) : (
             <button
               type="button"
-              aria-pressed={!isManual}
-              onClick={() => setIsManual(false)}
-              className={`rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                !isManual
-                  ? 'border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/15'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-              }`}
+              onClick={selectDirectory}
+              className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
             >
-              <div className="flex items-start gap-3">
-                <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${!isManual ? 'bg-white/15' : 'bg-slate-100 text-slate-700'}`}>
-                  <FileJsonIcon className="size-4" />
-                </span>
-                <span>
-                  <span className="flex items-center gap-2 font-semibold">
-                    自动汇总本地记录
-                    {!isManual && <CheckCircle2Icon className="size-4" />}
-                  </span>
-                  <span className={`mt-1 block text-sm ${!isManual ? 'text-slate-300' : 'text-slate-500'}`}>
-                    使用已选择目录的用量记录，按日期合并全部 Token 用量。
-                  </span>
-                </span>
-              </div>
+              <FolderOpenIcon className="size-3.5" />
+              选择本地目录
             </button>
-
-            <button
-              type="button"
-              aria-pressed={isManual}
-              onClick={() => setIsManual(true)}
-              className={`rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                isManual
-                  ? 'border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/15'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${isManual ? 'bg-white/15' : 'bg-slate-100 text-slate-700'}`}>
-                  <PencilLineIcon className="size-4" />
-                </span>
-                <span>
-                  <span className="flex items-center gap-2 font-semibold">
-                    手动填写 Token
-                    {isManual && <CheckCircle2Icon className="size-4" />}
-                  </span>
-                  <span className={`mt-1 block text-sm ${isManual ? 'text-slate-300' : 'text-slate-500'}`}>
-                    输入任意 Token 数量，用于预估单次任务或尚未写入本地记录的用量。
-                  </span>
-                </span>
-              </div>
-            </button>
-          </div>
-
-          {!isManual && (
-            <div className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-              {directoryName ? (
-                <>
-                  数据来源：<code className="font-mono text-xs text-slate-800">{directoryName}/...（{assistantId}）</code>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={selectDirectory}
-                  className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:text-blue-700"
-                >
-                  <FolderOpenIcon className="size-3.5" />
-                  选择本地目录
-                </button>
-              )}
-            </div>
           )}
+        </div>
+      )}
 
-          {isManual && (
-            <div className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
-              {(Object.keys(TOKEN_LABELS) as TokenField[]).map((field) => (
-                <div key={field} className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    {TOKEN_LABELS[field].label}
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={manualTokens[field] || ''}
-                    placeholder={TOKEN_LABELS[field].hint}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      updateManualToken(field, v === '' ? 0 : parseInt(v, 10));
-                    }}
-                    className="font-mono"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {isManual && (
+        <div className="flex flex-wrap items-end gap-3">
+          {(Object.keys(TOKEN_LABELS) as TokenField[]).map((field) => (
+            <label key={field} className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
+                {TOKEN_LABELS[field].label}
+              </span>
+              <Input
+                type="number"
+                min="0"
+                step="1000"
+                value={manualTokens[field] || ''}
+                placeholder={TOKEN_LABELS[field].hint}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  updateManualToken(field, v === '' ? 0 : parseInt(v, 10));
+                }}
+                className="w-40 font-mono"
+              />
+            </label>
+          ))}
+        </div>
+      )}
 
       <CostCalculator totals={totals} scope={scope} />
     </div>
