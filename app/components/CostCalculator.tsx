@@ -198,6 +198,12 @@ function formatUpdatedAt(value?: string) {
   });
 }
 
+function pricingSourceLabel(status: PricingStatus) {
+  if (status.status === 'loading') return '动态价格加载中';
+  if (status.source === 'postgres') return '使用动态价格';
+  return '使用本地默认价格';
+}
+
 function makeCostRows(totals: Totals, prices: UnitPrices): CostRow[] {
   const kinds: UsageKind[] = ['cache', 'input', 'output', 'cache_write'];
 
@@ -398,11 +404,7 @@ export function CostCalculator({ totals, scope }: Props) {
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="rounded-full bg-gray-100 px-2.5 py-1">
-                  {pricingStatus.status === 'loading'
-                    ? '动态价格加载中'
-                    : pricingStatus.source === 'postgres'
-                      ? '使用动态价格'
-                      : '使用本地默认价格'}
+                  {pricingSourceLabel(pricingStatus)}
                 </span>
                 <span className="rounded-full bg-gray-100 px-2.5 py-1">
                   更新：{formatUpdatedAt(pricingStatus.updatedAt)}

@@ -1,36 +1,51 @@
-import type { AssistantAdapter } from './types';
 import type { DailyEntry } from '@/lib/data';
 
-/*
- * TODO: 实现 Claude Code 的文件匹配与解析。
- *
- * Claude Code（Anthropic CLI）的数据存储位置：
- *   ~/.claude/projects/<project-name>/
- *
- * 可能的目录结构（待确认）：
- *   project-name/
- *     sessions/
- *       <session-id>.jsonl     ← 每行一个 JSON 消息，含 usage/token 数据
- *
- * 需要实现：
- *   1. matchFile: 根据实际目录结构匹配对应的用量文件
- *   2. parseContent: 从 Claude Code 的 JSON 结构中提取 DailyEntry
- */
+export function matchClaudeCodeFile(relativePath: string): boolean {
+  const lowerPath = relativePath.toLowerCase();
+  return lowerPath.endsWith('.jsonl') && !lowerPath.endsWith('.meta.json');
+}
 
-const matchFile = (_relativePath: string): boolean => {
-  return false;
-};
+function tokenCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+}
 
-const parseContent = (_content: string, _fileName: string): DailyEntry[] => {
-  return [];
-};
+export function parseClaudeCodeContent(content: string): DailyEntry[] {
+  const entries: DailyEntry[] = [];
 
-export const claudeCodeAdapter: AssistantAdapter = {
-  id: 'claude-code',
-  name: 'Claude Code',
-  description: 'Anthropic Claude Code CLI 用量数据（待接入）',
-  filePattern: '（待确认）',
-  ready: false,
-  matchFile,
-  parseContent,
-};
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+
+    try {
+      const record = JSON.parse(line) as {
+        timestamp?: unknown;
+        message?: {
+          usage?: Record<string, unknown>;
+        };
+      };
+      const timestamp = record.timestamp;
+      const usage = record.message?.usage;
+
+      if (typeof timestamp !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(timestamp) || !usage) {
+        continue;
+      }
+
+      const input = tokenCount(usage.input_tokens);
+      const cacheRead = tokenCount(usage.cache_read_input_tokens);
+      const output = tokenCount(usage.output_tokens);
+
+      entries.push({
+        date: timestamp.slice(0, 10),
+        provider_calls: 1,
+        turns_total: 1,
+        input_tokens: input,
+        output_tokens: output,
+        cache_read_tokens: cacheRead,
+        total_tokens: input + cacheRead + output,
+      });
+    } catch {
+      // 单行损坏不影响同一会话文件中的其他用量记录。
+    }
+  }
+
+  return entries;
+}

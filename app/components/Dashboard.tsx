@@ -1,5 +1,6 @@
 'use client';
 
+import { getAssistantSource } from '@/lib/assistants';
 import { SummaryCards } from './SummaryCards';
 import { TokenCharts } from './TokenCharts';
 import { UsageDataSource } from './UsageDataSource';
@@ -7,6 +8,9 @@ import { useUsageData } from './UsageDataProvider';
 
 export function Dashboard() {
   const source = useUsageData();
+  const capabilities = getAssistantSource(source.assistantId)?.capabilities;
+
+  if (!capabilities) return null;
 
   return (
     <>
@@ -22,8 +26,8 @@ export function Dashboard() {
         onSelect={source.selectDirectory}
       />
       {source.directoryInput}
-      <SummaryCards data={source.data} />
-      <TokenCharts data={source.data} />
+      <SummaryCards data={source.data} capabilities={capabilities} />
+      <TokenCharts data={source.data} capabilities={capabilities} />
     </>
   );
 }

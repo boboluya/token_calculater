@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DailyEntry } from "@/lib/data";
 import { fmt, fmtFull } from "../../components/SummaryCards";
@@ -17,7 +17,6 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
 } from "../../components/ui/card";
 import {
   Table,
@@ -68,6 +67,17 @@ function sumEntries(entries: DailyEntry[]): DailyEntry {
     }),
     EMPTY_TOTALS,
   );
+}
+
+function resolveSelectedMonth(months: string[], requestedMonth: string) {
+  if (requestedMonth && months.includes(requestedMonth)) return requestedMonth;
+  if (!months.length) return "";
+
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (months.includes(currentMonth)) return currentMonth;
+
+  return months[0];
 }
 
 function formatDateLabel(date: string) {
@@ -157,20 +167,13 @@ function EmptyState({ selectedMonth }: { selectedMonth: string }) {
 
 export default function TablePage() {
   const { data, loading, error } = useUsageData();
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const [requestedMonth, setRequestedMonth] = useState("");
 
   const months = useMemo(() => {
     const s = new Set(data.map((d) => d.date.substring(0, 7)));
     return Array.from(s).sort().reverse();
   }, [data]);
-
-  useEffect(() => {
-    if (months.length && !selectedMonth) {
-      const now = new Date();
-      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      setSelectedMonth(months.includes(ym) ? ym : months[0]);
-    }
-  }, [months, selectedMonth]);
+  const selectedMonth = resolveSelectedMonth(months, requestedMonth);
 
   const monthEntries = useMemo(
     () =>
@@ -223,7 +226,7 @@ export default function TablePage() {
           </p>
         </div>
 
-        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+        <Select value={selectedMonth} onValueChange={setRequestedMonth}>
           <SelectTrigger className="w-full sm:w-auto">
             <SelectValue />
           </SelectTrigger>

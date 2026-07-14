@@ -1,30 +1,52 @@
-import type { AssistantAdapter } from './types';
 import type { DailyEntry } from '@/lib/data';
+import { querySqliteFile, type SqliteRow } from './sqlite';
 
-/*
- * TODO: 实现 OpenCode 的文件匹配与解析。
- *
- * OpenCode 的数据存储位置和目录结构（待确认）。
- *
- * 需要实现：
- *   1. matchFile: 根据实际目录结构匹配对应的用量文件
- *   2. parseContent: 从 OpenCode 的数据结构中提取 DailyEntry
- */
+export function matchOpenCodeFile(relativePath: string): boolean {
+  return relativePath.split('/').at(-1)?.toLowerCase() === 'opencode.db';
+}
 
-const matchFile = (_relativePath: string): boolean => {
-  return false;
-};
+function numberValue(row: SqliteRow, key: string): number {
+  const value = row[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
-const parseContent = (_content: string, _fileName: string): DailyEntry[] => {
-  return [];
-};
+export async function parseOpenCodeFile(file: File): Promise<DailyEntry[]> {
+  try {
+    const rows = await querySqliteFile(
+      file,
+      `
+        SELECT
+          date(time_created / 1000, 'unixepoch', 'localtime') AS date,
+          COUNT(*) AS sessions,
+          SUM(tokens_input) AS input_tokens,
+          SUM(tokens_output) AS output_tokens,
+          SUM(tokens_cache_read) AS cache_read_tokens
+        FROM session
+        GROUP BY date
+        ORDER BY date
+      `,
+    );
 
-export const opencodeAdapter: AssistantAdapter = {
-  id: 'opencode',
-  name: 'OpenCode',
-  description: 'OpenCode 用量数据（待接入）',
-  filePattern: '（待确认）',
-  ready: false,
-  matchFile,
-  parseContent,
-};
+    return rows.flatMap((row) => {
+      if (typeof row.date !== 'string' || !row.date) return [];
+
+      const input = numberValue(row, 'input_tokens');
+      const output = numberValue(row, 'output_tokens');
+      const cacheRead = numberValue(row, 'cache_read_tokens');
+      const sessions = numberValue(row, 'sessions');
+
+      return [{
+        date: row.date,
+        provider_calls: sessions,
+        turns_total: sessions,
+        input_tokens: input,
+        output_tokens: output,
+        cache_read_tokens: cacheRead,
+        total_tokens: input + output + cacheRead,
+      }];
+    });
+  } catch (reason) {
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    throw new Error(`无法解析 OpenCode 数据库，请确认选择的是有效的 opencode.db：${detail}`);
+  }
+}

@@ -1,36 +1,46 @@
-import type { AssistantAdapter } from './types';
 import type { DailyEntry } from '@/lib/data';
+import { querySqliteFile, type SqliteRow } from './sqlite';
 
-/*
- * TODO: 实现 OpenAI Codex CLI 的文件匹配与解析。
- *
- * Codex CLI（OpenAI）的数据存储位置（待确认）：
- *   ~/.codex/  或项目根目录下的 .codex/
- *
- * 可能的目录结构（待确认）：
- *   .codex/
- *     sessions/
- *       <session-id>.json     ← 含 token 用量信息
- *
- * 需要实现：
- *   1. matchFile: 根据实际目录结构匹配对应的用量文件
- *   2. parseContent: 从 Codex 的 JSON 结构中提取 DailyEntry
- */
+export function matchCodexFile(relativePath: string): boolean {
+  return relativePath.split('/').at(-1)?.toLowerCase() === 'state_5.sqlite';
+}
 
-const matchFile = (_relativePath: string): boolean => {
-  return false;
-};
+function numberValue(row: SqliteRow, key: string): number {
+  const value = row[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
 
-const parseContent = (_content: string, _fileName: string): DailyEntry[] => {
-  return [];
-};
+export async function parseCodexFile(file: File): Promise<DailyEntry[]> {
+  try {
+    const rows = await querySqliteFile(
+      file,
+      `
+        SELECT
+          date(created_at, 'unixepoch', 'localtime') AS date,
+          COUNT(*) AS sessions,
+          SUM(tokens_used) AS total_tokens
+        FROM threads
+        GROUP BY date
+        ORDER BY date
+      `,
+    );
 
-export const codexAdapter: AssistantAdapter = {
-  id: 'codex',
-  name: 'Codex',
-  description: 'OpenAI Codex CLI 用量数据（待接入）',
-  filePattern: '（待确认）',
-  ready: false,
-  matchFile,
-  parseContent,
-};
+    return rows.flatMap((row) => {
+      if (typeof row.date !== 'string' || !row.date) return [];
+
+      const sessions = numberValue(row, 'sessions');
+      return [{
+        date: row.date,
+        provider_calls: sessions,
+        turns_total: sessions,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        total_tokens: numberValue(row, 'total_tokens'),
+      }];
+    });
+  } catch (reason) {
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    throw new Error(`无法解析 Codex 数据库，请确认选择的是有效的 state_5.sqlite：${detail}`);
+  }
+}

@@ -14,7 +14,7 @@ export default function ChartsPage() {
           Token 用量趋势
         </h1>
         <p className="mt-1 text-sm text-gray-500">
-          目前支持解析 Cursor 本地助手（~/.cursor-local-assistant-v2）的用量记录，更多工具接入中。
+          汇总 Cursor、Claude Code、Codex 与 OpenCode 的本地 Token 用量记录。
         </p>
       </div>
       <Dashboard />

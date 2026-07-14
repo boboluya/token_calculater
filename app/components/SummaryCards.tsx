@@ -1,7 +1,8 @@
 "use client";
 
 import type { DailyEntry } from "@/lib/data";
-import { Card, CardContent } from "./ui/card";
+import type { AssistantCapabilities } from "@/lib/assistants";
+import { Card } from "./ui/card";
 
 export function fmt(num: number): string {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
@@ -15,9 +16,10 @@ export function fmtFull(num: number): string {
 
 interface Props {
   data: DailyEntry[];
+  capabilities: AssistantCapabilities;
 }
 
-export function SummaryCards({ data }: Props) {
+export function SummaryCards({ data, capabilities }: Props) {
   const total = data.reduce(
     (acc, d) => ({
       input: acc.input + d.input_tokens,
@@ -50,31 +52,39 @@ export function SummaryCards({ data }: Props) {
       value: fmt(avg),
       sub: "tokens / 天",
     },
-    {
-      label: "输入",
-      value: fmt(total.input),
-      sub: `占比 ${total.totalTokens > 0 ? ((total.input / total.totalTokens) * 100).toFixed(0) : 0}%`,
-    },
-    {
-      label: "输出",
-      value: fmt(total.output),
-      sub: `占比 ${total.totalTokens > 0 ? ((total.output / total.totalTokens) * 100).toFixed(0) : 0}%`,
-    },
-    {
-      label: "缓存命中",
-      value: fmt(total.cache),
-      sub: `占比 ${total.totalTokens > 0 ? ((total.cache / total.totalTokens) * 100).toFixed(0) : 0}%`,
-    },
-    {
-      label: "调用次数",
-      value: fmtFull(total.calls),
-      sub: "次调用",
-    },
-    {
-      label: "轮次",
-      value: fmtFull(total.turns),
-      sub: "总轮次",
-    },
+    ...(capabilities.tokenBreakdown
+      ? [
+          {
+            label: "输入",
+            value: fmt(total.input),
+            sub: `占比 ${total.totalTokens > 0 ? ((total.input / total.totalTokens) * 100).toFixed(0) : 0}%`,
+          },
+          {
+            label: "输出",
+            value: fmt(total.output),
+            sub: `占比 ${total.totalTokens > 0 ? ((total.output / total.totalTokens) * 100).toFixed(0) : 0}%`,
+          },
+          {
+            label: "缓存命中",
+            value: fmt(total.cache),
+            sub: `占比 ${total.totalTokens > 0 ? ((total.cache / total.totalTokens) * 100).toFixed(0) : 0}%`,
+          },
+        ]
+      : []),
+    ...(capabilities.calls
+      ? [{
+          label: capabilities.callsLabel,
+          value: fmtFull(total.calls),
+          sub: capabilities.callsLabel === '会话数' ? '个会话' : '次调用',
+        }]
+      : []),
+    ...(capabilities.turns
+      ? [{
+          label: "轮次",
+          value: fmtFull(total.turns),
+          sub: "总轮次",
+        }]
+      : []),
   ];
 
   return (
