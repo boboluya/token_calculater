@@ -32,6 +32,10 @@ interface Props {
   assistantId: string;
   onAssistantChange: (id: string) => void;
   onSelect: () => void;
+  aggregationMode: boolean;
+  aggregationAgentIds: string[];
+  onToggleAggregationMode: () => void;
+  onToggleAggregationAgent: (id: string) => void;
 }
 
 interface SourceStatus {
@@ -129,6 +133,10 @@ export function UsageDataSource({
   assistantId,
   onAssistantChange,
   onSelect,
+  aggregationMode,
+  aggregationAgentIds,
+  onToggleAggregationMode,
+  onToggleAggregationAgent,
 }: Props) {
   const source = getAssistantSource(assistantId);
   const operatingSystem = useOperatingSystem();
@@ -147,22 +155,108 @@ export function UsageDataSource({
       <CardContent className="p-0">
         {/* ── 助手图标选择行 ── */}
         <div className="px-5 py-4 sm:px-6">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-            数据来源
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {ASSISTANT_SOURCES.map((sourceOption) => {
-              const iconUrl = SOURCE_ICON_URL[sourceOption.id];
-              const selected = sourceOption.id === assistantId;
-              const isReady = sourceOption.ready;
+          <div className="mb-3 flex items-center gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              数据来源
+            </p>
+            {/* 汇总切换按钮 */}
+            <button
+              type="button"
+              onClick={onToggleAggregationMode}
+              className={`rounded-lg border px-3 py-1 text-xs font-semibold transition-all ${
+                aggregationMode
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              汇总
+            </button>
+          </div>
+          {aggregationMode ? (
+            /* ── 汇总模式：复选框 ── */
+            <div className="flex flex-wrap gap-2">
+              {ASSISTANT_SOURCES.filter((s) => s.ready).map((sourceOption) => {
+                const iconUrl = SOURCE_ICON_URL[sourceOption.id];
+                const checked = aggregationAgentIds.includes(sourceOption.id);
 
-              if (!isReady) {
-                // 未实现的数据源灰显且不可点击。
                 return (
-                  <span
+                  <label
                     key={sourceOption.id}
                     title={sourceOption.description}
-                    className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-slate-150 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-350"
+                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                      checked
+                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleAggregationAgent(sourceOption.id)}
+                      className="sr-only"
+                    />
+                    {iconUrl && (
+                      <Image
+                        src={iconUrl}
+                        alt={sourceOption.name}
+                        width={16}
+                        height={16}
+                        className="size-4"
+                      />
+                    )}
+                    {sourceOption.name}
+                  </label>
+                );
+              })}
+              {aggregationAgentIds.length === 0 && (
+                <span className="text-xs text-rose-500 self-center ml-1">
+                  请至少选择一个数据源
+                </span>
+              )}
+            </div>
+          ) : (
+            /* ── 普通模式：单选按钮（原有行为） ── */
+            <div className="flex flex-wrap gap-2">
+              {ASSISTANT_SOURCES.map((sourceOption) => {
+                const iconUrl = SOURCE_ICON_URL[sourceOption.id];
+                const selected = sourceOption.id === assistantId;
+                const isReady = sourceOption.ready;
+
+                if (!isReady) {
+                  return (
+                    <span
+                      key={sourceOption.id}
+                      title={sourceOption.description}
+                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-slate-150 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-350"
+                    >
+                      {iconUrl && (
+                        <Image
+                          src={iconUrl}
+                          alt={sourceOption.name}
+                          width={16}
+                          height={16}
+                          className="size-4 opacity-40"
+                        />
+                      )}
+                      {sourceOption.name}
+                      <span className="ml-0.5 rounded bg-slate-200 px-1 py-px text-[10px] text-slate-500">
+                        待实现
+                      </span>
+                    </span>
+                  );
+                }
+
+                return (
+                  <button
+                    key={sourceOption.id}
+                    type="button"
+                    onClick={() => onAssistantChange(sourceOption.id)}
+                    title={sourceOption.description}
+                    className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                      selected
+                        ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-900/15"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                    }`}
                   >
                     {iconUrl && (
                       <Image
@@ -170,43 +264,15 @@ export function UsageDataSource({
                         alt={sourceOption.name}
                         width={16}
                         height={16}
-                        className="size-4 opacity-40"
+                        className="size-4"
                       />
                     )}
                     {sourceOption.name}
-                    <span className="ml-0.5 rounded bg-slate-200 px-1 py-px text-[10px] text-slate-500">
-                      待实现
-                    </span>
-                  </span>
+                  </button>
                 );
-              }
-
-              return (
-                <button
-                  key={sourceOption.id}
-                  type="button"
-                  onClick={() => onAssistantChange(sourceOption.id)}
-                  title={sourceOption.description}
-                  className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
-                    selected
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-900/15"
-                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
-                  }`}
-                >
-                  {iconUrl && (
-                    <Image
-                      src={iconUrl}
-                      alt={sourceOption.name}
-                      width={16}
-                      height={16}
-                      className="size-4"
-                    />
-                  )}
-                  {sourceOption.name}
-                </button>
-              );
-            })}
-          </div>
+              })}
+            </div>
+          )}
           <p className="mt-2.5 text-xs text-slate-400">
             原始目录仅在浏览器中解析，不会上传。
           </p>

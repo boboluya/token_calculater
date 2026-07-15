@@ -11,8 +11,9 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from 'react';
-import { gatherDailyTotals, type DailyEntry } from '@/lib/data';
+import { aggregateDailyEntries, gatherDailyTotals, type DailyEntry } from '@/lib/data';
 import {
+  ASSISTANT_SOURCES,
   DEFAULT_ASSISTANT_ID,
   getAssistantSource,
 } from '@/lib/assistants';
@@ -36,6 +37,11 @@ import {
 const LEGACY_STORAGE_KEY = 'token_calculator_usage_cache';
 const CACHE_KEY_PREFIX = 'token_calculator_usage_cache:';
 const SELECTED_ASSISTANT_KEY = 'token_calculator_selected_assistant';
+const AGGREGATION_MODE_KEY = 'token_calculator_aggregation_mode';
+const AGGREGATION_AGENTS_KEY = 'token_calculator_aggregation_agents';
+
+/** 所有已就绪的 agent id，作为汇总模式默认勾选列表 */
+const READY_AGENT_IDS = ASSISTANT_SOURCES.filter((s) => s.ready).map((s) => s.id);
 
 function cacheKey(assistantId: string) {
   return `${CACHE_KEY_PREFIX}${assistantId}`;
@@ -47,6 +53,7 @@ interface CachePayload {
   data: DailyEntry[];
   savedAt: number;
   assistantId: string;
+  parserVersion?: number;
 }
 
 export interface UsageDataState {
@@ -63,6 +70,14 @@ export interface UsageDataState {
   setAssistant: (id: string) => void;
   selectDirectory: () => void;
   directoryInput: ReactNode;
+  /** 汇总模式开关 */
+  aggregationMode: boolean;
+  /** 汇总模式下勾选的 agent id 列表 */
+  aggregationAgentIds: string[];
+  /** 切换汇总模式 */
+  toggleAggregationMode: () => void;
+  /** 切换某个 agent 在汇总中的选中状态 */
+  toggleAggregationAgent: (id: string) => void;
 }
 
 const UsageDataContext = createContext<UsageDataState | null>(null);
@@ -159,6 +174,8 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
   const [savedAt, setSavedAt] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [assistantId, setAssistantId] = useState(DEFAULT_ASSISTANT_ID);
+  const [aggregationMode, setAggregationMode] = useState(false);
+  const [aggregationAgentIds, setAggregationAgentIds] = useState<string[]>(READY_AGENT_IDS);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -173,6 +190,22 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
         setFileCount(cached.fileCount);
         setSavedAt(cached.savedAt);
       }
+
+      // 恢复汇总模式设置
+      const savedAggMode = localStorage.getItem(AGGREGATION_MODE_KEY);
+      if (savedAggMode === 'true') {
+        setAggregationMode(true);
+      }
+      const savedAggAgents = localStorage.getItem(AGGREGATION_AGENTS_KEY);
+      if (savedAggAgents) {
+        try {
+          const parsed = JSON.parse(savedAggAgents);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAggregationAgentIds(parsed.filter((id: unknown) => typeof id === 'string'));
+          }
+        } catch { /* ignore */ }
+      }
+
       setHydrated(true);
     });
 
@@ -257,10 +290,42 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
     [assistantId],
   );
 
+  /* ── 汇总模式 ── */
+
+  const toggleAggregationMode = useCallback(() => {
+    setAggregationMode((prev) => {
+      const next = !prev;
+      localStorage.setItem(AGGREGATION_MODE_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const toggleAggregationAgent = useCallback((id: string) => {
+    setAggregationAgentIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      localStorage.setItem(AGGREGATION_AGENTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const aggregatedData = useMemo(() => {
+    if (!aggregationMode || !hydrated) return [];
+    const entries = aggregationAgentIds
+      .map((id) => loadCache(id)?.data)
+      .filter((d): d is DailyEntry[] => Array.isArray(d));
+    return entries.length > 0 ? aggregateDailyEntries(entries) : [];
+  }, [aggregationMode, aggregationAgentIds, hydrated]);
+
+  /* ── 对外暴露的 data ── */
+  const displayData = useMemo(
+    () => (aggregationMode ? aggregatedData : data),
+    [aggregationMode, aggregatedData, data],
+  );
+
   // 在 hydration 完成前不暴露 data，避免 SSR/CSR 闪烁导致的图表空值问题
   const value = useMemo(
     () => ({
-      data: hydrated ? data : [],
+      data: hydrated ? displayData : [],
       directoryName,
       fileCount,
       loading: !hydrated || loading,
@@ -269,6 +334,10 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       assistantId,
       setAssistant,
       selectDirectory,
+      aggregationMode,
+      aggregationAgentIds,
+      toggleAggregationMode,
+      toggleAggregationAgent,
       directoryInput: (
         <input
           ref={inputRef}
@@ -282,6 +351,7 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       ),
     }),
     [
+      displayData,
       data,
       directoryName,
       error,
@@ -293,6 +363,10 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       assistantId,
       setAssistant,
       selectDirectory,
+      aggregationMode,
+      aggregationAgentIds,
+      toggleAggregationMode,
+      toggleAggregationAgent,
     ],
   );
 

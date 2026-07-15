@@ -66,22 +66,17 @@ export const ASSISTANT_SOURCES: AssistantSource[] = [
   {
     id: 'codex',
     name: 'Codex',
-    description: 'OpenAI Codex CLI 的本地会话总 Token 用量',
-    filePattern: 'state_5.sqlite',
+    description: 'OpenAI Codex CLI 的本地会话 Token 用量记录',
+    filePattern: 'sessions/**/*.jsonl',
     ready: true,
-    capabilities: {
-      tokenBreakdown: false,
-      calls: true,
-      turns: false,
-      callsLabel: '会话数',
-    },
+    capabilities: DETAILED_CAPABILITIES,
     selectionPaths: [
       { os: 'Linux', path: '~/.codex/' },
       { os: 'Windows', path: '%USERPROFILE%\\.codex\\' },
       { os: 'macOS', path: '~/.codex/' },
     ],
-    storagePath: '~/.codex/state_5.sqlite',
-    storageNote: 'threads 表的 tokens_used 字段，仅有总 Token 用量，无 input/output 拆分。state_5 为主库，logs_2/goals_1/memories_1 为空或已废弃。',
+    storagePath: '~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl',
+    storageNote: '每次模型调用的 token_count 事件，含 input/output/cache/reasoning 拆分及逐调用用量。cached_input_tokens 是 input_tokens 的子集，reasoning_output_tokens 是 output_tokens 的子集。',
   },
   {
     id: 'opencode',

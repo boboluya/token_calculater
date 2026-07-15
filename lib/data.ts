@@ -27,6 +27,11 @@ const KEYS = [
   'total_tokens',
 ] as const;
 
+/** 将多个 agent 的日数据合并后重新按日期聚合 */
+export function aggregateDailyEntries(allEntries: DailyEntry[][]): DailyEntry[] {
+  return gatherDailyTotals(allEntries.flat());
+}
+
 export function gatherDailyTotals(entries: DailyEntry[]): DailyEntry[] {
   const daily: Record<string, DailyEntry> = {};
 
