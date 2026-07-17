@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+public/get_pricing.md
+doc/获取价格.md
+AGENTS.md
+CLAUDE.md
