@@ -1,12 +1,19 @@
-export type PriceSource = 'openrouter' | 'fallback';
+export type PriceSource = 'backend' | 'openrouter' | 'fallback';
 export type UsageKind = 'cache' | 'input' | 'output' | 'cache_write';
 
 export type UnitPrices = Record<UsageKind, number>;
+
+export interface ProviderMetadata {
+  name: string;
+  type?: string;
+  url?: string;
+}
 
 export interface PricePreset {
   id: string;
   label: string;
   vendor: string;
+  provider?: ProviderMetadata;
   pricesUsdPer1M: UnitPrices;
   source: PriceSource;
   derived?: Partial<Record<UsageKind, string>>;
@@ -33,7 +40,7 @@ export interface StoredPricingCatalog {
 
 export interface PricingResponse {
   catalog: PriceCatalog;
-  source: 'postgres' | 'fallback';
+  source: 'backend' | 'fallback';
   updatedAt?: string;
   stale: boolean;
   error?: string;

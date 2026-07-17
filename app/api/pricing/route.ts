@@ -1,26 +1,27 @@
 import { NextResponse } from 'next/server';
+import { fetchAggregatePriceCatalog } from '@/lib/pricing/aggregate';
 import { buildFallbackPriceCatalog } from '@/lib/pricing/fallback';
-import { readLatestPriceCatalog } from '@/lib/pricing/postgres';
 import type { PricingResponse } from '@/lib/pricing/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
-
 export async function GET() {
-  try {
-    const stored = await readLatestPriceCatalog();
-    if (!stored) return fallbackResponse('pricing catalog is not synced yet');
+  const baseUrl = process.env.MODEL_PRICING_API_BASE_URL;
+  const apiKey = process.env.MODEL_PRICING_API_KEY;
 
-    const updatedAtMs = new Date(stored.updatedAt).getTime();
-    const stale = !Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > STALE_AFTER_MS;
+  if (!baseUrl || !apiKey) {
+    return fallbackResponse('Model pricing API environment variables are not configured');
+  }
+
+  try {
+    const catalog = await fetchAggregatePriceCatalog(baseUrl, apiKey);
 
     return NextResponse.json({
-      catalog: stored.catalog,
-      source: 'postgres',
-      updatedAt: stored.updatedAt,
-      stale,
+      catalog,
+      source: 'backend',
+      updatedAt: catalog.fetchedAt,
+      stale: false,
     } satisfies PricingResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
