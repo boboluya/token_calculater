@@ -2,11 +2,6 @@ import { Sidebar } from '../components/Sidebar';
 import { UsageDataProvider } from '../components/UsageDataProvider';
 import { SidebarProvider } from '../components/ui/sidebar';
 
-export const metadata = {
-  title: 'Token 计算器',
-  description: 'Token 用量分析看板',
-};
-
 export default function DashboardLayout({
   children,
 }: {
