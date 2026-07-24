@@ -51,6 +51,7 @@ export function Dashboard() {
         assistantId={source.assistantId}
         onAssistantChange={source.setAssistant}
         onSelect={source.selectDirectory}
+        onDropDirectory={source.ingestDroppedDirectory}
         aggregationMode={source.aggregationMode}
         aggregationAgentIds={source.aggregationAgentIds}
         onToggleAggregationMode={source.toggleAggregationMode}

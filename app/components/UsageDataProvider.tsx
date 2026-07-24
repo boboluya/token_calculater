@@ -69,6 +69,8 @@ export interface UsageDataState {
   /** 切换数据源 */
   setAssistant: (id: string) => void;
   selectDirectory: () => void;
+  /** 拖入目录 / DataTransfer 时走同一套解析 */
+  ingestDroppedDirectory: (dataTransfer: DataTransfer) => void;
   directoryInput: ReactNode;
   /** 汇总模式开关 */
   aggregationMode: boolean;
@@ -79,6 +81,12 @@ export interface UsageDataState {
   /** 切换某个 agent 在汇总中的选中状态 */
   toggleAggregationAgent: (id: string) => void;
 }
+
+/** 带相对路径的文件，兼容 input[webkitdirectory] 与拖放目录 */
+type RelativeFile = {
+  file: File;
+  relativePath: string;
+};
 
 const UsageDataContext = createContext<UsageDataState | null>(null);
 
@@ -164,6 +172,70 @@ async function parseUsageFile(assistantId: string, file: File): Promise<DailyEnt
   }
 }
 
+/** readEntries 一次可能只返回部分结果，需循环直到空批 */
+function readAllDirectoryEntries(
+  reader: FileSystemDirectoryReader,
+): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const all: FileSystemEntry[] = [];
+    const readBatch = () => {
+      reader.readEntries((batch) => {
+        if (batch.length === 0) resolve(all);
+        else {
+          all.push(...batch);
+          readBatch();
+        }
+      }, reject);
+    };
+    readBatch();
+  });
+}
+
+/** 递归展开拖入的 FileSystemEntry，路径形态与 webkitRelativePath 一致 */
+async function collectEntryFiles(
+  entry: FileSystemEntry,
+  parentPath: string,
+): Promise<RelativeFile[]> {
+  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    const file = await new Promise<File>((resolve, reject) => {
+      (entry as FileSystemFileEntry).file(resolve, reject);
+    });
+    return [{ file, relativePath }];
+  }
+
+  if (entry.isDirectory) {
+    const children = await readAllDirectoryEntries(
+      (entry as FileSystemDirectoryEntry).createReader(),
+    );
+    const nested = await Promise.all(
+      children.map((child) => collectEntryFiles(child, relativePath)),
+    );
+    return nested.flat();
+  }
+
+  return [];
+}
+
+async function filesFromDataTransfer(dataTransfer: DataTransfer): Promise<RelativeFile[]> {
+  const items = Array.from(dataTransfer.items ?? []);
+  const entries = items
+    .map((item) => (typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null))
+    .filter((entry): entry is FileSystemEntry => entry != null);
+
+  if (entries.length > 0) {
+    const nested = await Promise.all(entries.map((entry) => collectEntryFiles(entry, '')));
+    return nested.flat();
+  }
+
+  // 无 Directory Entry 时退回 FileList（通常只有文件名，无目录层级）
+  return Array.from(dataTransfer.files ?? []).map((file) => ({
+    file,
+    relativePath: file.webkitRelativePath || file.name,
+  }));
+}
+
 export function UsageDataProvider({ children }: { children: ReactNode }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<DailyEntry[]>([]);
@@ -227,10 +299,9 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
 
   const selectDirectory = useCallback(() => inputRef.current?.click(), []);
 
-  const readDirectory = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const selectedFiles = Array.from(event.target.files ?? []);
-      event.target.value = '';
+  /** 解析相对路径文件列表（不管理 loading，由调用方包一层） */
+  const processRelativeFiles = useCallback(
+    async (selectedFiles: RelativeFile[]) => {
       if (!selectedFiles.length) return;
 
       const source = getAssistantSource(assistantId);
@@ -239,43 +310,57 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const name = selectedFiles[0].webkitRelativePath.split('/')[0] || '所选目录';
+      const name = selectedFiles[0].relativePath.split('/')[0] || '所选目录';
       const matchedFiles = selectedFiles
-        .filter((file) => matchesUsageFile(assistantId, file.webkitRelativePath))
-        .sort((a, b) => a.webkitRelativePath.localeCompare(b.webkitRelativePath));
+        .filter((item) => matchesUsageFile(assistantId, item.relativePath))
+        .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+
+      if (!matchedFiles.length) {
+        setData([]);
+        setFileCount(0);
+        setDirectoryName(name);
+        setSavedAt(0);
+        setError(`所选目录中未找到符合 ${source.name} 格式（${source.filePattern}）的文件`);
+        clearCache(assistantId);
+        return;
+      }
+
+      const parsedFiles = await Promise.all(
+        matchedFiles.map((item) => parseUsageFile(assistantId, item.file)),
+      );
+      const daily = gatherDailyTotals(parsedFiles.flat());
+      const now = Date.now();
+
+      setData(daily);
+      setFileCount(matchedFiles.length);
+      setDirectoryName(name);
+      setSavedAt(now);
+      setError(null);
+
+      saveCache({
+        directoryName: name,
+        fileCount: matchedFiles.length,
+        data: daily,
+        savedAt: now,
+        assistantId,
+      });
+    },
+    [assistantId],
+  );
+
+  const readDirectory = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = Array.from(event.target.files ?? []).map((file) => ({
+        file,
+        relativePath: file.webkitRelativePath || file.name,
+      }));
+      event.target.value = '';
+      if (!selectedFiles.length) return;
 
       setLoading(true);
       setError(null);
-
       try {
-        if (!matchedFiles.length) {
-          setData([]);
-          setFileCount(0);
-          setDirectoryName(name);
-          setSavedAt(0);
-          setError(`所选目录中未找到符合 ${source.name} 格式（${source.filePattern}）的文件`);
-          clearCache(assistantId);
-          return;
-        }
-
-        const parsedFiles = await Promise.all(
-          matchedFiles.map((file) => parseUsageFile(assistantId, file)),
-        );
-        const daily = gatherDailyTotals(parsedFiles.flat());
-        const now = Date.now();
-
-        setData(daily);
-        setFileCount(matchedFiles.length);
-        setDirectoryName(name);
-        setSavedAt(now);
-
-        saveCache({
-          directoryName: name,
-          fileCount: matchedFiles.length,
-          data: daily,
-          savedAt: now,
-          assistantId,
-        });
+        await processRelativeFiles(selectedFiles);
       } catch (reason) {
         setData([]);
         setFileCount(0);
@@ -287,7 +372,34 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [assistantId],
+    [assistantId, processRelativeFiles],
+  );
+
+  const ingestDroppedDirectory = useCallback(
+    (dataTransfer: DataTransfer) => {
+      void (async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const selectedFiles = await filesFromDataTransfer(dataTransfer);
+          if (!selectedFiles.length) {
+            setError('未识别到可读取的目录或文件');
+            return;
+          }
+          await processRelativeFiles(selectedFiles);
+        } catch (reason) {
+          setData([]);
+          setFileCount(0);
+          setDirectoryName(null);
+          setSavedAt(0);
+          setError(reason instanceof Error ? reason.message : '目录读取失败');
+          clearCache(assistantId);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    },
+    [assistantId, processRelativeFiles],
   );
 
   /* ── 汇总模式 ── */
@@ -334,6 +446,7 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       assistantId,
       setAssistant,
       selectDirectory,
+      ingestDroppedDirectory,
       aggregationMode,
       aggregationAgentIds,
       toggleAggregationMode,
@@ -363,6 +476,7 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       assistantId,
       setAssistant,
       selectDirectory,
+      ingestDroppedDirectory,
       aggregationMode,
       aggregationAgentIds,
       toggleAggregationMode,

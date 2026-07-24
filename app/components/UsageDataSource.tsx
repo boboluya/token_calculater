@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type DragEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   CheckCircle2Icon,
@@ -32,6 +32,7 @@ interface Props {
   assistantId: string;
   onAssistantChange: (id: string) => void;
   onSelect: () => void;
+  onDropDirectory: (dataTransfer: DataTransfer) => void;
   aggregationMode: boolean;
   aggregationAgentIds: string[];
   onToggleAggregationMode: () => void;
@@ -133,6 +134,7 @@ export function UsageDataSource({
   assistantId,
   onAssistantChange,
   onSelect,
+  onDropDirectory,
   aggregationMode,
   aggregationAgentIds,
   onToggleAggregationMode,
@@ -140,6 +142,8 @@ export function UsageDataSource({
 }: Props) {
   const source = getAssistantSource(assistantId);
   const operatingSystem = useOperatingSystem();
+  const [dragDepth, setDragDepth] = useState(0);
+  const isDragOver = dragDepth > 0;
 
   const selectionPath = source?.selectionPaths.find(
     (selection) => selection.os === operatingSystem,
@@ -150,84 +154,119 @@ export function UsageDataSource({
   const StatusIcon = status.icon;
   const isLoading = status.kind === "loading";
 
+  const handleDragEnter = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (loading) return;
+    setDragDepth((depth) => depth + 1);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragDepth((depth) => Math.max(0, depth - 1));
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (loading) return;
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragDepth(0);
+    if (loading) return;
+    onDropDirectory(event.dataTransfer);
+  };
+
   return (
     <Card className="mb-7 gap-0 border-slate-200 bg-white shadow-none">
       <CardContent className="p-0">
         {/* ── 助手图标选择行 ── */}
         <div className="px-5 py-4 sm:px-6">
-          <div className="mb-3 flex items-center gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              数据来源
-            </p>
-            {/* 汇总切换按钮 */}
-            <button
-              type="button"
-              onClick={onToggleAggregationMode}
-              className={`rounded-lg border px-3 py-1 text-xs font-semibold transition-all ${
-                aggregationMode
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              汇总
-            </button>
-          </div>
-          {aggregationMode ? (
-            /* ── 汇总模式：复选框 ── */
-            <div className="flex flex-wrap gap-2">
-              {ASSISTANT_SOURCES.filter((s) => s.ready).map((sourceOption) => {
-                const iconUrl = SOURCE_ICON_URL[sourceOption.id];
-                const checked = aggregationAgentIds.includes(sourceOption.id);
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            数据来源
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {aggregationMode
+              ? /* ── 汇总模式：复选框 ── */
+                ASSISTANT_SOURCES.filter((s) => s.ready).map((sourceOption) => {
+                  const iconUrl = SOURCE_ICON_URL[sourceOption.id];
+                  const checked = aggregationAgentIds.includes(sourceOption.id);
 
-                return (
-                  <label
-                    key={sourceOption.id}
-                    title={sourceOption.description}
-                    className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
-                      checked
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onToggleAggregationAgent(sourceOption.id)}
-                      className="sr-only"
-                    />
-                    {iconUrl && (
-                      <Image
-                        src={iconUrl}
-                        alt={sourceOption.name}
-                        width={16}
-                        height={16}
-                        className="size-4"
-                      />
-                    )}
-                    {sourceOption.name}
-                  </label>
-                );
-              })}
-              {aggregationAgentIds.length === 0 && (
-                <span className="text-xs text-rose-500 self-center ml-1">
-                  请至少选择一个数据源
-                </span>
-              )}
-            </div>
-          ) : (
-            /* ── 普通模式：单选按钮（原有行为） ── */
-            <div className="flex flex-wrap gap-2">
-              {ASSISTANT_SOURCES.map((sourceOption) => {
-                const iconUrl = SOURCE_ICON_URL[sourceOption.id];
-                const selected = sourceOption.id === assistantId;
-                const isReady = sourceOption.ready;
-
-                if (!isReady) {
                   return (
-                    <span
+                    <label
                       key={sourceOption.id}
                       title={sourceOption.description}
-                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-slate-150 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-350"
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                        checked
+                          ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => onToggleAggregationAgent(sourceOption.id)}
+                        className="sr-only"
+                      />
+                      {iconUrl && (
+                        <Image
+                          src={iconUrl}
+                          alt={sourceOption.name}
+                          width={16}
+                          height={16}
+                          className="size-4"
+                        />
+                      )}
+                      {sourceOption.name}
+                    </label>
+                  );
+                })
+              : /* ── 普通模式：单选按钮 ── */
+                ASSISTANT_SOURCES.map((sourceOption) => {
+                  const iconUrl = SOURCE_ICON_URL[sourceOption.id];
+                  const selected = sourceOption.id === assistantId;
+                  const isReady = sourceOption.ready;
+
+                  if (!isReady) {
+                    return (
+                      <span
+                        key={sourceOption.id}
+                        title={sourceOption.description}
+                        className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-slate-150 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-350"
+                      >
+                        {iconUrl && (
+                          <Image
+                            src={iconUrl}
+                            alt={sourceOption.name}
+                            width={16}
+                            height={16}
+                            className="size-4 opacity-40"
+                          />
+                        )}
+                        {sourceOption.name}
+                        <span className="ml-0.5 rounded bg-slate-200 px-1 py-px text-[10px] text-slate-500">
+                          待实现
+                        </span>
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={sourceOption.id}
+                      type="button"
+                      onClick={() => onAssistantChange(sourceOption.id)}
+                      title={sourceOption.description}
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                        selected
+                          ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-900/15"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                      }`}
                     >
                       {iconUrl && (
                         <Image
@@ -235,44 +274,33 @@ export function UsageDataSource({
                           alt={sourceOption.name}
                           width={16}
                           height={16}
-                          className="size-4 opacity-40"
+                          className="size-4"
                         />
                       )}
                       {sourceOption.name}
-                      <span className="ml-0.5 rounded bg-slate-200 px-1 py-px text-[10px] text-slate-500">
-                        待实现
-                      </span>
-                    </span>
+                    </button>
                   );
-                }
+                })}
 
-                return (
-                  <button
-                    key={sourceOption.id}
-                    type="button"
-                    onClick={() => onAssistantChange(sourceOption.id)}
-                    title={sourceOption.description}
-                    className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
-                      selected
-                        ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-900/15"
-                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
-                    }`}
-                  >
-                    {iconUrl && (
-                      <Image
-                        src={iconUrl}
-                        alt={sourceOption.name}
-                        width={16}
-                        height={16}
-                        className="size-4"
-                      />
-                    )}
-                    {sourceOption.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            {/* 汇总：放在四个 agent 后面 */}
+            <button
+              type="button"
+              onClick={onToggleAggregationMode}
+              className={`cursor-pointer rounded-xl border px-3.5 py-2 text-sm font-medium transition-all ${
+                aggregationMode
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+              }`}
+            >
+              汇总
+            </button>
+
+            {aggregationMode && aggregationAgentIds.length === 0 && (
+              <span className="self-center text-xs text-rose-500">
+                请至少选择一个数据源
+              </span>
+            )}
+          </div>
           <p className="mt-2.5 text-xs text-slate-400">
             原始目录仅在浏览器中解析，不会上传。
           </p>
@@ -304,21 +332,63 @@ export function UsageDataSource({
                     目录选择器中请选择
                   </p>
                   {selectionPath ? (
-                    <div className="flex min-w-0 items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900">
-                      <FolderOpenIcon className="mt-0.5 size-4 shrink-0 text-slate-500" />
+                    <button
+                      type="button"
+                      onClick={onSelect}
+                      disabled={loading}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      className={`flex w-full min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isDragOver
+                          ? "border-indigo-400 bg-indigo-50 text-indigo-900 ring-2 ring-indigo-200"
+                          : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      <FolderOpenIcon
+                        className={`mt-0.5 size-4 shrink-0 ${
+                          isDragOver ? "text-indigo-500" : "text-slate-500"
+                        }`}
+                      />
                       <div className="min-w-0">
-                        <div className="text-xs font-medium text-slate-500">
+                        <div
+                          className={`text-xs font-medium ${
+                            isDragOver ? "text-indigo-600" : "text-slate-500"
+                          }`}
+                        >
                           {selectionPath.os}系统目录位置
                         </div>
                         <code className="mt-0.5 block break-all text-xs font-semibold leading-5 text-slate-900 sm:text-sm">
                           {selectionPath.path}
                         </code>
+                        <p
+                          className={`mt-1.5 text-[11px] ${
+                            isDragOver ? "text-indigo-600" : "text-slate-400"
+                          }`}
+                        >
+                          {isDragOver ? "松开以导入该目录" : "点击选择，或将目录拖入此处"}
+                        </p>
                       </div>
-                    </div>
+                    </button>
                   ) : (
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
-                      未能识别当前操作系统，请选择 {source.storagePath} 所在目录。
-                    </div>
+                    <button
+                      type="button"
+                      onClick={onSelect}
+                      disabled={loading}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      className={`w-full rounded-lg border px-3 py-2.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isDragOver
+                          ? "border-indigo-400 bg-indigo-50 text-indigo-800 ring-2 ring-indigo-200"
+                          : "cursor-pointer border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      未能识别当前操作系统，请选择 {source.storagePath}{" "}
+                      所在目录（点击或拖入）。
+                    </button>
                   )}
                   <p className="mt-2 text-xs text-slate-500">
                     选择整个目录，将自动查找 <code>{source.filePattern}</code>
