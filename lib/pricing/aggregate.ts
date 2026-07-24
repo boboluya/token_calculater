@@ -12,6 +12,7 @@ interface AggregateProvider {
   providerType?: unknown;
   provider?: unknown;
   providerUrl?: unknown;
+  iconData?: unknown;
   models?: unknown;
 }
 
@@ -82,6 +83,13 @@ export function parseAggregatePriceCatalog(
   };
 }
 
+type ProviderContext = {
+  vendor: string;
+  providerType: string | null;
+  providerUrl: string | null;
+  iconData: string | null;
+};
+
 function parseProvider(value: unknown): PricePreset[] {
   if (!isRecord(value)) return [];
 
@@ -89,17 +97,15 @@ function parseProvider(value: unknown): PricePreset[] {
   const vendor = asText(provider.provider);
   const providerType = asText(provider.providerType);
   const providerUrl = asText(provider.providerUrl);
+  const iconData = asIconData(provider.iconData);
   if (!vendor || !Array.isArray(provider.models)) return [];
 
   return provider.models.flatMap((model) =>
-    parseModel(model, { vendor, providerType, providerUrl }),
+    parseModel(model, { vendor, providerType, providerUrl, iconData }),
   );
 }
 
-function parseModel(
-  value: unknown,
-  provider: { vendor: string; providerType: string | null; providerUrl: string | null },
-): PricePreset[] {
+function parseModel(value: unknown, provider: ProviderContext): PricePreset[] {
   if (!isRecord(value)) return [];
 
   const model = value as AggregateModel;
@@ -115,7 +121,7 @@ function parseModel(
 function parsePlan(
   value: unknown,
   modelName: string,
-  provider: { vendor: string; providerType: string | null; providerUrl: string | null },
+  provider: ProviderContext,
 ): PricePreset | null {
   if (!isRecord(value)) return null;
 
@@ -144,6 +150,7 @@ function parsePlan(
       name: provider.vendor,
       ...(provider.providerType ? { type: provider.providerType } : {}),
       ...(provider.providerUrl ? { url: provider.providerUrl } : {}),
+      ...(provider.iconData ? { iconData: provider.iconData } : {}),
     },
     source: 'backend',
     pricesUsdPer1M: prices,
@@ -185,6 +192,13 @@ function normalizeCurrency(value: string | null) {
 
 function asText(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** 接受完整 Data URL；拒绝空串与非 data: 伪协议内容。 */
+function asIconData(value: unknown) {
+  const text = asText(value);
+  if (!text) return null;
+  return text.startsWith('data:image/') ? text : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

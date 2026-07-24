@@ -70,9 +70,12 @@ export function Sidebar() {
       <SidebarHeader className="relative border-b border-sidebar-border px-3 pb-4 pt-5">
         <SidebarToggle />
         <div className="flex h-11 min-w-0 items-center gap-3 rounded-2xl px-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:px-0">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-950 text-[13px] font-bold text-white shadow-sm shadow-slate-950/15">
-            T
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/Token计算logo.png"
+            alt="Token 计算器"
+            className="size-9 shrink-0"
+          />
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-sm font-semibold tracking-tight text-slate-950">
               Token 计算器

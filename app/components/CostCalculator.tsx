@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { RefreshCw } from "lucide-react";
 import { lora } from "@/app/fonts";
 import {
@@ -106,7 +105,7 @@ const ROW_META: Record<UsageKind, Pick<CostRow, "label" | "hint" | "color">> = {
   },
 };
 
-/** 厂商名称 → public/provider_icon/ 下的图标文件路径 */
+/** 厂商名称 → public/provider_icon/ 下的图标文件路径（API 无 iconData 时兜底） */
 const VENDOR_ICONS: Record<string, string> = {
   openai: "/provider_icon/openai.svg",
   anthropic: "/provider_icon/claudecode.png",
@@ -122,8 +121,12 @@ const VENDOR_DISPLAY_NAMES: Record<string, string> = {
   deepseek: "deepseek(USD)",
 };
 
-function vendorIcon(vendor: string): string | undefined {
-  return VENDOR_ICONS[vendor.toLowerCase()];
+function resolveVendorIcon(group: VendorGroup): string | undefined {
+  if (group.iconData?.startsWith("data:image/")) return group.iconData;
+  return (
+    VENDOR_ICONS[group.name.toLowerCase()] ??
+    (group.type ? VENDOR_ICONS[group.type.toLowerCase()] : undefined)
+  );
 }
 
 function formatVendorName(value: string) {
@@ -151,6 +154,7 @@ interface VendorGroup {
   name: string;
   type?: string;
   url?: string;
+  iconData?: string;
   presets: PricePreset[];
 }
 
@@ -169,12 +173,20 @@ function buildVendorGroups(presets: PricePreset[]): VendorGroup[] {
     groups.set(
       id,
       current
-        ? { ...current, presets: [...current.presets, preset] }
+        ? {
+            ...current,
+            // 同组后续 preset 若带 icon，补上缺失的图标
+            ...(current.iconData || !provider?.iconData
+              ? {}
+              : { iconData: provider.iconData }),
+            presets: [...current.presets, preset],
+          }
         : {
             id,
             name: formatVendorName(provider?.name ?? preset.vendor),
             ...(provider?.type ? { type: provider.type } : {}),
             ...(provider?.url ? { url: provider.url } : {}),
+            ...(provider?.iconData ? { iconData: provider.iconData } : {}),
             presets: [preset],
           },
     );
@@ -648,7 +660,7 @@ export function CostCalculator({ totals, scope }: Props) {
             <div className="flex flex-wrap gap-2">
               {vendorGroups.map((group) => {
                 const selected = group.id === activeVendorGroup?.id;
-                const icon = vendorIcon(group.name);
+                const icon = resolveVendorIcon(group);
 
                 return (
                   <button
@@ -662,17 +674,20 @@ export function CostCalculator({ totals, scope }: Props) {
                         : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
                     }`}
                   >
-                    {icon && (
+                    {icon ? (
                       <span className="grid size-5 shrink-0 place-items-center overflow-hidden rounded bg-white">
-                        <Image
+                        {/* data URL 与静态资源统一用 img，避免 next/image 对 data: 限制 */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
                           src={icon}
-                          alt={group.name}
+                          alt=""
                           width={20}
                           height={20}
                           className="size-4 object-contain"
+                          draggable={false}
                         />
                       </span>
-                    )}
+                    ) : null}
                     {group.name}
                   </button>
                 );
