@@ -3,7 +3,7 @@ import type { PriceCatalog, PricePreset } from './types';
 export const FALLBACK_SOURCE_URL = 'local:fallback-pricing';
 export const DEFAULT_PRICE_PRESET_ID = 'GPT-5.5';
 
-/** 与 Go 聚合接口 USD 计划对齐的离线兜底（2026-07-24 拉取） */
+/** 与 Go 聚合接口 USD 计划对齐的离线兜底（2026-07-28 拉取） */
 export const FALLBACK_PRICE_PRESETS: PricePreset[] = [
   // OpenAI
   preset('GPT-5.5', 'GPT-5.5', 'OpenAI', 0.5, 5, 30, 0),

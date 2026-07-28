@@ -13,6 +13,8 @@ interface AggregateProvider {
   provider?: unknown;
   providerUrl?: unknown;
   iconData?: unknown;
+  introduction?: unknown;
+  sortOrder?: unknown;
   models?: unknown;
 }
 
@@ -77,9 +79,17 @@ export function parseAggregatePriceCatalog(
   return {
     fetchedAt: now.toISOString(),
     sourceUrl,
-    presets: presets.sort((a, b) =>
-      a.vendor.localeCompare(b.vendor) || a.label.localeCompare(b.label),
-    ),
+    presets: presets.sort((a, b) => {
+      const providerOrder =
+        (a.provider?.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+        (b.provider?.sortOrder ?? Number.MAX_SAFE_INTEGER);
+
+      return (
+        providerOrder ||
+        a.vendor.localeCompare(b.vendor) ||
+        a.label.localeCompare(b.label)
+      );
+    }),
   };
 }
 
@@ -88,6 +98,8 @@ type ProviderContext = {
   providerType: string | null;
   providerUrl: string | null;
   iconData: string | null;
+  introduction: string | null;
+  sortOrder: number | null;
 };
 
 function parseProvider(value: unknown): PricePreset[] {
@@ -98,10 +110,19 @@ function parseProvider(value: unknown): PricePreset[] {
   const providerType = asText(provider.providerType);
   const providerUrl = asText(provider.providerUrl);
   const iconData = asIconData(provider.iconData);
+  const introduction = asText(provider.introduction);
+  const sortOrder = asSortOrder(provider.sortOrder);
   if (!vendor || !Array.isArray(provider.models)) return [];
 
   return provider.models.flatMap((model) =>
-    parseModel(model, { vendor, providerType, providerUrl, iconData }),
+    parseModel(model, {
+      vendor,
+      providerType,
+      providerUrl,
+      iconData,
+      introduction,
+      sortOrder,
+    }),
   );
 }
 
@@ -151,6 +172,12 @@ function parsePlan(
       ...(provider.providerType ? { type: provider.providerType } : {}),
       ...(provider.providerUrl ? { url: provider.providerUrl } : {}),
       ...(provider.iconData ? { iconData: provider.iconData } : {}),
+      ...(provider.introduction
+        ? { introduction: provider.introduction }
+        : {}),
+      ...(provider.sortOrder !== null
+        ? { sortOrder: provider.sortOrder }
+        : {}),
     },
     source: 'backend',
     pricesUsdPer1M: prices,
@@ -181,6 +208,12 @@ function asPrice(value: unknown) {
     : NaN;
 
   return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function asSortOrder(value: unknown) {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
 function normalizeCurrency(value: string | null) {

@@ -70,12 +70,12 @@ interface PricingStatus {
 }
 
 interface CachedPricingCatalog {
-  version: 2;
+  version: 4;
   catalog: PriceCatalog;
 }
 
 const DEFAULT_RATE = 6.79;
-const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v2";
+const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v4";
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   USD: "$",
@@ -155,6 +155,7 @@ interface VendorGroup {
   type?: string;
   url?: string;
   iconData?: string;
+  introduction?: string;
   presets: PricePreset[];
 }
 
@@ -179,6 +180,9 @@ function buildVendorGroups(presets: PricePreset[]): VendorGroup[] {
             ...(current.iconData || !provider?.iconData
               ? {}
               : { iconData: provider.iconData }),
+            ...(current.introduction || !provider?.introduction
+              ? {}
+              : { introduction: provider.introduction }),
             presets: [...current.presets, preset],
           }
         : {
@@ -187,6 +191,9 @@ function buildVendorGroups(presets: PricePreset[]): VendorGroup[] {
             ...(provider?.type ? { type: provider.type } : {}),
             ...(provider?.url ? { url: provider.url } : {}),
             ...(provider?.iconData ? { iconData: provider.iconData } : {}),
+            ...(provider?.introduction
+              ? { introduction: provider.introduction }
+              : {}),
             presets: [preset],
           },
     );
@@ -293,7 +300,7 @@ function readCachedPriceCatalog(): PriceCatalog | null {
 
     const cached = JSON.parse(raw) as CachedPricingCatalog;
     if (
-      cached.version !== 2 ||
+      cached.version !== 4 ||
       !cached.catalog ||
       typeof cached.catalog.fetchedAt !== "string" ||
       typeof cached.catalog.sourceUrl !== "string" ||
@@ -338,7 +345,7 @@ function writeCachedPriceCatalog(catalog: PriceCatalog) {
   try {
     localStorage.setItem(
       PRICING_CACHE_KEY,
-      JSON.stringify({ version: 2, catalog }),
+      JSON.stringify({ version: 4, catalog }),
     );
   } catch {
     // 持久化失败不应覆盖已成功取得的动态价格。
@@ -696,33 +703,40 @@ export function CostCalculator({ totals, scope }: Props) {
 
             {activeVendorGroup && activeModels.length > 0 ? (
               <div>
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-sm font-medium text-foreground">
-                      <span className={lora.className}>
-                        {activeVendorGroup.name}
-                      </span>{" "}
-                      模型
+                <div className="mb-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <div className="flex items-baseline gap-2">
+                      <div className="text-sm font-medium text-foreground">
+                        <span className={lora.className}>
+                          {activeVendorGroup.name}
+                        </span>{" "}
+                        模型
+                      </div>
+                      {activeVendorGroup.type ? (
+                        <span className="text-xs text-muted-foreground">
+                          {activeVendorGroup.type}
+                        </span>
+                      ) : null}
+                      {activeVendorUrl ? (
+                        <a
+                          href={activeVendorUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-600 underline-offset-2 hover:underline"
+                        >
+                          供应商官网
+                        </a>
+                      ) : null}
                     </div>
-                    {activeVendorGroup.type ? (
-                      <span className="text-xs text-muted-foreground">
-                        {activeVendorGroup.type}
-                      </span>
-                    ) : null}
-                    {activeVendorUrl ? (
-                      <a
-                        href={activeVendorUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-blue-600 underline-offset-2 hover:underline"
-                      >
-                        供应商官网
-                      </a>
-                    ) : null}
+                    <div className="text-xs text-muted-foreground">
+                      USD / 1M tokens
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    USD / 1M tokens
-                  </div>
+                  {activeVendorGroup.introduction ? (
+                    <p className="mt-2 whitespace-pre-line text-xs leading-5 text-muted-foreground">
+                      {activeVendorGroup.introduction}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {activeModels.map((preset) => {
