@@ -1,11 +1,21 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dashboard } from '../components/Dashboard';
 
 /** 首页看板 UI（client）；SEO metadata 放在同级 page.tsx 服务端导出 */
 export default function ChartsPageClient() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      router.replace('/calculator?mode=manual');
+    }
+  }, [router]);
+
   return (
-    <div>
+    <div className="hidden md:block">
       <div className="mb-6">
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
           Usage monitor

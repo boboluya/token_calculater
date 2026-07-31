@@ -37,10 +37,11 @@ function sumDailyEntries(entries: DailyEntry[]) {
 function CalculatorContent() {
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date');
+  const modeParam = searchParams.get('mode');
 
   const { data, loading, error, directoryName, assistantId, selectDirectory } = useUsageData();
 
-  const [isManual, setIsManual] = useState(false);
+  const [isManual, setIsManual] = useState(modeParam === 'manual');
   const [manualTokens, setManualTokens] = useState<Totals>({ input: 0, output: 0, cache: 0 });
 
   const filtered = useMemo(
