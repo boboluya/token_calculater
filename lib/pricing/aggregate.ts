@@ -14,6 +14,7 @@ interface AggregateProvider {
   providerUrl?: unknown;
   iconData?: unknown;
   introduction?: unknown;
+  featured?: unknown;
   sortOrder?: unknown;
   models?: unknown;
 }
@@ -99,6 +100,7 @@ type ProviderContext = {
   providerUrl: string | null;
   iconData: string | null;
   introduction: string | null;
+  featured: boolean;
   sortOrder: number | null;
 };
 
@@ -111,6 +113,7 @@ function parseProvider(value: unknown): PricePreset[] {
   const providerUrl = asText(provider.providerUrl);
   const iconData = asIconData(provider.iconData);
   const introduction = asText(provider.introduction);
+  const featured = asFeatured(provider.featured);
   const sortOrder = asSortOrder(provider.sortOrder);
   if (!vendor || !Array.isArray(provider.models)) return [];
 
@@ -121,6 +124,7 @@ function parseProvider(value: unknown): PricePreset[] {
       providerUrl,
       iconData,
       introduction,
+      featured,
       sortOrder,
     }),
   );
@@ -175,6 +179,7 @@ function parsePlan(
       ...(provider.introduction
         ? { introduction: provider.introduction }
         : {}),
+      featured: provider.featured,
       ...(provider.sortOrder !== null
         ? { sortOrder: provider.sortOrder }
         : {}),
@@ -208,6 +213,10 @@ function asPrice(value: unknown) {
     : NaN;
 
   return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function asFeatured(value: unknown) {
+  return value === 1 || value === true;
 }
 
 function asSortOrder(value: unknown) {

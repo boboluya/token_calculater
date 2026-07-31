@@ -18,9 +18,9 @@ interface Totals {
 }
 
 const TOKEN_LABELS: Record<TokenField, { label: string; hint: string }> = {
-  cache: { label: '缓存命中', hint: 'cache_read_tokens' },
-  input: { label: '输入', hint: 'input_tokens' },
-  output: { label: '输出', hint: 'output_tokens' },
+  input: { label: '输入 Token', hint: '未缓存的请求内容' },
+  cache: { label: '缓存命中', hint: '从缓存读取的内容' },
+  output: { label: '输出 Token', hint: '模型生成的内容' },
 };
 
 function sumDailyEntries(entries: DailyEntry[]) {
@@ -154,27 +154,56 @@ function CalculatorContent() {
       )}
 
       {isManual && (
-        <div className="flex flex-wrap items-end gap-3">
-          {(Object.keys(TOKEN_LABELS) as TokenField[]).map((field) => (
-            <label key={field} className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
-                {TOKEN_LABELS[field].label}
-              </span>
-              <Input
-                type="number"
-                min="0"
-                step="1000"
-                value={manualTokens[field] || ''}
-                placeholder={TOKEN_LABELS[field].hint}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  updateManualToken(field, v === '' ? 0 : parseInt(v, 10));
-                }}
-                className="w-40 font-mono"
-              />
-            </label>
-          ))}
-        </div>
+        <section
+          aria-labelledby="manual-token-title"
+          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5 sm:p-5"
+        >
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <h2
+                id="manual-token-title"
+                className="text-sm font-semibold text-slate-900"
+              >
+                Token 用量
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                填写本次需要估算的实际用量
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+              单位：tokens
+            </span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(Object.keys(TOKEN_LABELS) as TokenField[]).map((field) => (
+              <label
+                key={field}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition-colors focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100"
+              >
+                <span className="block text-sm font-medium text-slate-700">
+                  {TOKEN_LABELS[field].label}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-400">
+                  {TOKEN_LABELS[field].hint}
+                </span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  step="1000"
+                  value={manualTokens[field] || ''}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateManualToken(field, v === '' ? 0 : parseInt(v, 10));
+                  }}
+                  className="mt-3 h-12 rounded-lg border-slate-200 bg-white px-3 text-right font-mono text-lg font-semibold text-slate-900 shadow-none focus-visible:ring-2"
+                />
+              </label>
+            ))}
+          </div>
+        </section>
       )}
 
       <CostCalculator totals={totals} scope={scope} />

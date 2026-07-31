@@ -43,9 +43,9 @@ const NAV_ITEMS = [
 ];
 
 function SidebarToggle() {
-  const { state, toggleSidebar } = useSidebar();
+  const { state, isMobile, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
-  const label = collapsed ? "展开侧边栏" : "收起侧边栏";
+  const label = isMobile ? "关闭导航菜单" : collapsed ? "展开侧边栏" : "收起侧边栏";
 
   return (
     <button
@@ -64,6 +64,13 @@ function SidebarToggle() {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const closeMobileMenu = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <SidebarRoot collapsible="icon" className="border-sidebar-border bg-sidebar">
@@ -106,7 +113,7 @@ export function Sidebar() {
                       tooltip={item.label}
                       className="h-10 rounded-xl px-3 text-[13px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950 data-[active=true]:bg-slate-950 data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=true]:shadow-slate-950/15 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:px-0"
                     >
-                      <Link href={item.href}>
+                      <Link href={item.href} onClick={closeMobileMenu}>
                         <Icon className="size-4" />
                         <span>{item.label}</span>
                       </Link>

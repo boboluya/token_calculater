@@ -70,12 +70,12 @@ interface PricingStatus {
 }
 
 interface CachedPricingCatalog {
-  version: 4;
+  version: 5;
   catalog: PriceCatalog;
 }
 
 const DEFAULT_RATE = 6.79;
-const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v4";
+const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v5";
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   USD: "$",
@@ -156,6 +156,7 @@ interface VendorGroup {
   url?: string;
   iconData?: string;
   introduction?: string;
+  featured: boolean;
   presets: PricePreset[];
 }
 
@@ -176,6 +177,7 @@ function buildVendorGroups(presets: PricePreset[]): VendorGroup[] {
       current
         ? {
             ...current,
+            featured: current.featured || provider?.featured === true,
             // 同组后续 preset 若带 icon，补上缺失的图标
             ...(current.iconData || !provider?.iconData
               ? {}
@@ -194,6 +196,7 @@ function buildVendorGroups(presets: PricePreset[]): VendorGroup[] {
             ...(provider?.introduction
               ? { introduction: provider.introduction }
               : {}),
+            featured: provider?.featured ?? false,
             presets: [preset],
           },
     );
@@ -300,7 +303,7 @@ function readCachedPriceCatalog(): PriceCatalog | null {
 
     const cached = JSON.parse(raw) as CachedPricingCatalog;
     if (
-      cached.version !== 4 ||
+      cached.version !== 5 ||
       !cached.catalog ||
       typeof cached.catalog.fetchedAt !== "string" ||
       typeof cached.catalog.sourceUrl !== "string" ||
@@ -313,6 +316,7 @@ function readCachedPriceCatalog(): PriceCatalog | null {
           typeof preset.label !== "string" ||
           typeof preset.vendor !== "string" ||
           preset.source !== "backend" ||
+          typeof preset.provider?.featured !== "boolean" ||
           !hasValidUnitPrices(preset.pricesUsdPer1M),
       )
     ) {
@@ -345,7 +349,7 @@ function writeCachedPriceCatalog(catalog: PriceCatalog) {
   try {
     localStorage.setItem(
       PRICING_CACHE_KEY,
-      JSON.stringify({ version: 4, catalog }),
+      JSON.stringify({ version: 5, catalog }),
     );
   } catch {
     // 持久化失败不应覆盖已成功取得的动态价格。
@@ -411,6 +415,14 @@ export function CostCalculator({ totals, scope }: Props) {
 
   const presetsById = useMemo(() => indexPresets(presets), [presets]);
   const vendorGroups = useMemo(() => buildVendorGroups(presets), [presets]);
+  const featuredVendorGroups = useMemo(
+    () => vendorGroups.filter((group) => group.featured),
+    [vendorGroups],
+  );
+  const otherVendorGroups = useMemo(
+    () => vendorGroups.filter((group) => !group.featured),
+    [vendorGroups],
+  );
   const rows = useMemo(
     () => makeCostRows(totals, unitPrices),
     [totals, unitPrices],
@@ -428,8 +440,11 @@ export function CostCalculator({ totals, scope }: Props) {
     (catalog: PriceCatalog, source: "backend" | "cache") => {
       const nextById = indexPresets(catalog.presets);
       const currentSelected = selectedPresetIdRef.current;
+      const firstFeatured = catalog.presets.find(
+        (preset) => preset.provider?.featured,
+      );
       const nextPreset = currentSelected
-        ? (nextById.get(currentSelected) ?? catalog.presets[0])
+        ? (nextById.get(currentSelected) ?? firstFeatured ?? catalog.presets[0])
         : null;
 
       setPresets(catalog.presets);
@@ -572,7 +587,7 @@ export function CostCalculator({ totals, scope }: Props) {
     <div className="space-y-5">
       <div ref={summarySentinelRef} className="h-px" aria-hidden="true" />
       {isSummaryCollapsed ? (
-        <Card className="fixed inset-x-4 top-4 z-20 overflow-hidden p-0 shadow-md shadow-slate-950/10 md:left-[calc(var(--sidebar-width)+2rem)] md:right-8">
+        <Card className="fixed inset-x-4 top-[4.5rem] z-20 overflow-hidden p-0 shadow-md shadow-slate-950/10 md:left-[calc(var(--sidebar-width)+2rem)] md:right-8 md:top-4">
           <div className="flex h-18 items-center justify-between gap-6 px-5 sm:px-7">
             <div className="min-w-0">
               <div className="text-xs font-medium text-muted-foreground">
@@ -663,9 +678,9 @@ export function CostCalculator({ totals, scope }: Props) {
           subtitle="预设价格以 USD / 1M tokens 为基准，切换币种时自动换算。"
         >
           <div className="max-h-130 space-y-4 overflow-y-auto pr-1">
-            {/* 按厂商筛选模型 */}
+            {/* 精选供应商直接展示，其余供应商收纳到下拉框。 */}
             <div className="flex flex-wrap gap-2">
-              {vendorGroups.map((group) => {
+              {featuredVendorGroups.map((group) => {
                 const selected = group.id === activeVendorGroup?.id;
                 const icon = resolveVendorIcon(group);
 
@@ -699,6 +714,31 @@ export function CostCalculator({ totals, scope }: Props) {
                   </button>
                 );
               })}
+
+              {otherVendorGroups.length > 0 ? (
+                <Select
+                  value={
+                    activeVendorGroup && !activeVendorGroup.featured
+                      ? activeVendorGroup.id
+                      : ""
+                  }
+                  onValueChange={selectVendor}
+                >
+                  <SelectTrigger
+                    className="w-auto min-w-40 rounded-xl"
+                    aria-label="选择其他供应商"
+                  >
+                    <SelectValue placeholder="其他供应商" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherVendorGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
             </div>
 
             {activeVendorGroup && activeModels.length > 0 ? (

@@ -8,6 +8,7 @@ export interface ProviderMetadata {
   type?: string;
   url?: string;
   introduction?: string;
+  featured?: boolean;
   sortOrder?: number;
   /** 供应商图标 Data URL（data:image/...;base64,...） */
   iconData?: string;
