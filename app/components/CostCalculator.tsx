@@ -70,12 +70,12 @@ interface PricingStatus {
 }
 
 interface CachedPricingCatalog {
-  version: 5;
+  version: 6;
   catalog: PriceCatalog;
 }
 
 const DEFAULT_RATE = 6.79;
-const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v5";
+const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v6";
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   USD: "$",
@@ -292,10 +292,6 @@ function pricingSourceLabel(status: PricingStatus) {
   return "使用本地默认价格";
 }
 
-function formatPricingError(error: string) {
-  return error.replace(/[。.!！?？]+$/u, "");
-}
-
 function readCachedPriceCatalog(): PriceCatalog | null {
   try {
     const raw = localStorage.getItem(PRICING_CACHE_KEY);
@@ -303,7 +299,7 @@ function readCachedPriceCatalog(): PriceCatalog | null {
 
     const cached = JSON.parse(raw) as CachedPricingCatalog;
     if (
-      cached.version !== 5 ||
+      cached.version !== 6 ||
       !cached.catalog ||
       typeof cached.catalog.fetchedAt !== "string" ||
       typeof cached.catalog.sourceUrl !== "string" ||
@@ -652,10 +648,9 @@ export function CostCalculator({ totals, scope }: Props) {
                   className="mt-2 text-xs leading-5 text-amber-700"
                   role="status"
                 >
-                  动态价格获取失败：{formatPricingError(pricingStatus.error)}
                   {pricingStatus.source === "fallback"
-                    ? "。当前使用本地默认价格，下次进入会自动重试。"
-                    : "。当前价格未被覆盖。"}
+                    ? "动态价格不可用，已使用默认价格。"
+                    : "动态价格刷新失败。"}
                 </p>
               ) : null}
             </div>

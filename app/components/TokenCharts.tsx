@@ -1,8 +1,11 @@
 'use client';
 
-import type { DailyEntry } from '@/lib/data';
+import { useMemo } from 'react';
+import type { DailyEntry, Granularity } from '@/lib/data';
+import { pickGranularity, resampleEntries } from '@/lib/data';
 import type { AssistantCapabilities } from '@/lib/assistants';
 import ReactECharts from 'echarts-for-react';
+import { connect } from 'echarts';
 import { fmt, fmtFull } from './SummaryCards';
 import {
   Card,
@@ -72,11 +75,18 @@ function xAxis(labels: string[]) {
   return {
     type: 'category' as const,
     data: labels,
-    axisLabel: { color: COLORS.text, fontSize: 11 },
+    axisLabel: {
+      color: COLORS.text,
+      fontSize: 11,
+      hideOverlap: true,
+    },
     axisLine: { lineStyle: { color: COLORS.axis } },
     axisTick: { show: false },
   };
 }
+
+/** 柱系列公共基底：限制柱宽，避免点数少时柱子被拉得过胖 */
+const BAR = { type: 'bar' as const, barMaxWidth: 28 };
 
 function barItem(color: string) {
   return {
@@ -126,13 +136,19 @@ function legend() {
   };
 }
 
+/** 默认视窗：只渲染最近 N 个点，其余靠 dataZoom 回溯 */
+const DEFAULT_WINDOW = 30;
+
 /* dataZoom：inside（滚轮/拖拽） + slider（底部滑块条） */
-function dataZoomConfig() {
+function dataZoomConfig(pointCount: number) {
+  const startValue = Math.max(0, pointCount - DEFAULT_WINDOW);
+  const endValue = Math.max(0, pointCount - 1);
+
   return [
     {
       type: 'inside' as const,
-      start: 0,
-      end: 100,
+      startValue,
+      endValue,
       zoomOnMouseWheel: true,
       moveOnMouseMove: true,
     },
@@ -140,8 +156,8 @@ function dataZoomConfig() {
       type: 'slider' as const,
       bottom: 0,
       height: 24,
-      start: 0,
-      end: 100,
+      startValue,
+      endValue,
       borderColor: COLORS.grid,
       fillerColor: COLORS.totalSoft,
       dataBackground: {
@@ -179,10 +195,10 @@ function makeTotalChart(labels: string[], data: DailyEntry[]): EChartsOption {
     grid: GRID,
     xAxis: xAxis(labels),
     yAxis: yAxis(),
-    dataZoom: dataZoomConfig(),
+    dataZoom: dataZoomConfig(labels.length),
     series: [
       {
-        type: 'bar',
+        ...BAR,
         name: '总量',
         data: data.map((d) => d.total_tokens),
         itemStyle: barItem(COLORS.total),
@@ -198,24 +214,24 @@ function makeBreakdownChart(labels: string[], data: DailyEntry[]): EChartsOption
     grid: { ...GRID, top: 30 },
     xAxis: xAxis(labels),
     yAxis: yAxis(),
-    dataZoom: dataZoomConfig(),
+    dataZoom: dataZoomConfig(labels.length),
     series: [
       {
-        type: 'bar',
+        ...BAR,
         name: '缓存命中',
         stack: 'total',
         data: data.map((d) => d.cache_read_tokens),
         itemStyle: stackedBarItem(COLORS.cache),
       },
       {
-        type: 'bar',
+        ...BAR,
         name: '输入',
         stack: 'total',
         data: data.map((d) => d.input_tokens),
         itemStyle: stackedBarItem(COLORS.input),
       },
       {
-        type: 'bar',
+        ...BAR,
         name: '输出',
         stack: 'total',
         data: data.map((d) => d.output_tokens),
@@ -237,7 +253,7 @@ function makeHitRateChart(labels: string[], data: DailyEntry[]): EChartsOption {
     },
     grid: GRID,
     xAxis: xAxis(labels),
-    dataZoom: dataZoomConfig(),
+    dataZoom: dataZoomConfig(labels.length),
     yAxis: {
       type: 'value' as const,
       min: 0,
@@ -284,16 +300,16 @@ function makeInputOutputChart(labels: string[], data: DailyEntry[]): EChartsOpti
     grid: { ...GRID, top: 30 },
     xAxis: xAxis(labels),
     yAxis: yAxis(),
-    dataZoom: dataZoomConfig(),
+    dataZoom: dataZoomConfig(labels.length),
     series: [
       {
-        type: 'bar',
+        ...BAR,
         name: '输入',
         data: data.map((d) => d.input_tokens),
         itemStyle: barItem(COLORS.input),
       },
       {
-        type: 'bar',
+        ...BAR,
         name: '输出',
         data: data.map((d) => d.output_tokens),
         itemStyle: barItem(COLORS.output),
@@ -310,7 +326,7 @@ function makeActivityChart(
   const series = [
     ...(capabilities.calls
       ? [{
-          type: 'bar' as const,
+          ...BAR,
           name: capabilities.callsLabel,
           data: data.map((d) => d.provider_calls),
           itemStyle: barItem(COLORS.calls),
@@ -318,7 +334,7 @@ function makeActivityChart(
       : []),
     ...(capabilities.turns
       ? [{
-          type: 'bar' as const,
+          ...BAR,
           name: '轮次',
           yAxisIndex: capabilities.calls ? 1 : 0,
           data: data.map((d) => d.turns_total),
@@ -332,7 +348,7 @@ function makeActivityChart(
     legend: legend(),
     grid: { left: 50, right: capabilities.turns && capabilities.calls ? 50 : 20, top: 30, bottom: 55 },
     xAxis: xAxis(labels),
-    dataZoom: dataZoomConfig(),
+    dataZoom: dataZoomConfig(labels.length),
     yAxis: capabilities.turns && capabilities.calls
       ? [
           yAxis(),
@@ -355,33 +371,80 @@ function makeActivityChart(
 /*  component                                                          */
 /* ------------------------------------------------------------------ */
 
+/** 桶起始日期 → 轴标签；周/月需要区别于日，避免歧义 */
+const AXIS_LABEL: Record<Granularity, (date: string) => string> = {
+  day: (date) => date.slice(5),
+  week: (date) => `${date.slice(5)} 周`,
+  month: (date) => date.slice(0, 7),
+};
+
+const PERIOD_PREFIX: Record<Granularity, string> = {
+  day: '每日',
+  week: '每周',
+  month: '每月',
+};
+
+/** 同组的图表共享缩放与轴指示器，拖动任意一张其余跟随 */
+const ZOOM_GROUP = 'token-charts';
+
 export function TokenCharts({ data, capabilities }: Props) {
-  const labels = data.map((d) => d.date.slice(5)); // MM-DD
+  const granularity = pickGranularity(data.length);
+  const series = useMemo(
+    () => resampleEntries(data, granularity),
+    [data, granularity],
+  );
+  const labels = useMemo(
+    () => series.map((d) => AXIS_LABEL[granularity](d.date)),
+    [series, granularity],
+  );
+
+  const period = PERIOD_PREFIX[granularity];
   const activityTitle = capabilities.turns
     ? `${capabilities.callsLabel}与轮次`
     : capabilities.callsLabel;
+
+  const groupProps = {
+    group: ZOOM_GROUP,
+    onChartReady: () => connect(ZOOM_GROUP),
+  };
 
   return (
     <div
       className="grid gap-5"
       style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))' }}
     >
-      <ChartCard title="每日 Token 总量">
-        <ReactECharts option={makeTotalChart(labels, data)} style={{ height: 300 }} />
+      <ChartCard title={`${period} Token 总量`}>
+        <ReactECharts
+          option={makeTotalChart(labels, series)}
+          style={{ height: 300 }}
+          {...groupProps}
+        />
       </ChartCard>
 
       {capabilities.tokenBreakdown && (
         <>
           <ChartCard title="Token 构成（输入 + 输出 + 缓存命中）">
-            <ReactECharts option={makeBreakdownChart(labels, data)} style={{ height: 300 }} />
+            <ReactECharts
+              option={makeBreakdownChart(labels, series)}
+              style={{ height: 300 }}
+              {...groupProps}
+            />
           </ChartCard>
 
           <ChartCard title="缓存命中率（%）">
-            <ReactECharts option={makeHitRateChart(labels, data)} style={{ height: 300 }} />
+            <ReactECharts
+              option={makeHitRateChart(labels, series)}
+              style={{ height: 300 }}
+              {...groupProps}
+            />
           </ChartCard>
 
           <ChartCard title="输入 vs 输出 Token">
-            <ReactECharts option={makeInputOutputChart(labels, data)} style={{ height: 300 }} />
+            <ReactECharts
+              option={makeInputOutputChart(labels, series)}
+              style={{ height: 300 }}
+              {...groupProps}
+            />
           </ChartCard>
         </>
       )}
@@ -389,8 +452,9 @@ export function TokenCharts({ data, capabilities }: Props) {
       {(capabilities.calls || capabilities.turns) && (
         <ChartCard title={activityTitle}>
           <ReactECharts
-            option={makeActivityChart(labels, data, capabilities)}
+            option={makeActivityChart(labels, series, capabilities)}
             style={{ height: 300 }}
+            {...groupProps}
           />
         </ChartCard>
       )}

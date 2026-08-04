@@ -18,14 +18,17 @@ export async function GET() {
     const catalog = await fetchAggregatePriceCatalog(baseUrl, apiKey);
 
     return NextResponse.json({
-      catalog,
+      // Keep the configured backend URL server-only.
+      catalog: { ...catalog, sourceUrl: 'backend' },
       source: 'backend',
       updatedAt: catalog.fetchedAt,
       stale: false,
     } satisfies PricingResponse);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return fallbackResponse(message);
+    // Do not expose upstream URLs or response details to the browser.
+    console.error('Model pricing request failed', error);
+    const status = error instanceof Error ? error.message.match(/HTTP (\d{3})/)?.[1] : undefined;
+    return fallbackResponse(status ? "上游定价接口返回 HTTP " + status + "（/model/model_pricing/aggregate），请检查服务端 MODEL_PRICING_API_BASE_URL 和后端路由" : "动态价格接口请求失败，请检查服务端配置和后端日志");
   }
 }
 
