@@ -1,6 +1,16 @@
 import type { PriceCatalog, PricePreset, UnitPrices } from './types';
 
 const AGGREGATE_PATH = '/model/model_pricing/aggregate';
+export class ModelPricingRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly url: string,
+    readonly responseBody: string,
+  ) {
+    super(`Model pricing request failed: HTTP ${status}`);
+    this.name = "ModelPricingRequestError";
+  }
+}
 
 interface AggregateResponse {
   code?: unknown;
@@ -50,9 +60,13 @@ export async function fetchAggregatePriceCatalog(
   });
 
   if (!response.ok) {
-    throw new Error(`Model pricing request failed: HTTP ${response.status}`);
+    const responseBody = (await response.text()).slice(0, 2_000);
+    throw new ModelPricingRequestError(
+      response.status,
+      sourceUrl,
+      responseBody,
+    );
   }
-
   return parseAggregatePriceCatalog(await response.json(), sourceUrl);
 }
 

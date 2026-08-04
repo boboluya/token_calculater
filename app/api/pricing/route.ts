@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { fetchAggregatePriceCatalog } from '@/lib/pricing/aggregate';
+import {
+  fetchAggregatePriceCatalog,
+  ModelPricingRequestError,
+} from "@/lib/pricing/aggregate";
 import { buildFallbackPriceCatalog } from '@/lib/pricing/fallback';
 import type { PricingResponse } from '@/lib/pricing/types';
 
@@ -25,10 +28,30 @@ export async function GET() {
       stale: false,
     } satisfies PricingResponse);
   } catch (error) {
-    // Do not expose upstream URLs or response details to the browser.
-    console.error('Model pricing request failed', error);
-    const status = error instanceof Error ? error.message.match(/HTTP (\d{3})/)?.[1] : undefined;
-    return fallbackResponse(status ? "上游定价接口返回 HTTP " + status + "（/model/model_pricing/aggregate），请检查服务端 MODEL_PRICING_API_BASE_URL 和后端路由" : "动态价格接口请求失败，请检查服务端配置和后端日志");
+    // Keep the full upstream diagnosis in server logs only. Never log the key.
+    if (error instanceof ModelPricingRequestError) {
+      console.error("Model pricing upstream request failed", {
+        method: "GET",
+        url: error.url,
+        status: error.status,
+        responseBody: error.responseBody || "<empty>",
+      });
+    } else {
+      console.error("Model pricing request failed", {
+        method: "GET",
+        baseUrl,
+        path: "/model/model_pricing/aggregate",
+        error,
+      });
+    }
+
+    const status =
+      error instanceof ModelPricingRequestError ? error.status : undefined;
+    return fallbackResponse(
+      status
+        ? `上游定价接口返回 HTTP ${status}（/model/model_pricing/aggregate），请检查服务端 MODEL_PRICING_API_BASE_URL 和后端路由`
+        : "动态价格接口请求失败，请检查服务端配置和后端日志",
+    );
   }
 }
 
