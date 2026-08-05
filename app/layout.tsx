@@ -34,10 +34,6 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  icons: {
-    icon: "/Token计算logo.png",
-    apple: "/Token计算logo.png",
-  },
   robots: {
     index: true,
     follow: true,
@@ -59,8 +55,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/Token计算logo.png",
-        width: 512,
-        height: 512,
+        width: 1685,
+        height: 1417,
         alt: `${SITE_NAME} Logo`,
       },
     ],
