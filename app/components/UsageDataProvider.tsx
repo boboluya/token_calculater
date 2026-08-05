@@ -43,6 +43,21 @@ const AGGREGATION_AGENTS_KEY = 'token_calculator_aggregation_agents';
 /** 所有已就绪的 agent id，作为汇总模式默认勾选列表 */
 const READY_AGENT_IDS = ASSISTANT_SOURCES.filter((s) => s.ready).map((s) => s.id);
 
+/**
+ * 解析器版本：解析逻辑发生结果性变化时递增对应数据源的版本号，
+ * 使旧缓存失效并要求重新导入目录。未列出的数据源视为 1。
+ *
+ * claude-code v2：按 message.id 去重，修正按 content block 行重复累加
+ * 导致的用量放大。
+ */
+const PARSER_VERSIONS: Record<string, number> = {
+  'claude-code': 2,
+};
+
+function parserVersionOf(assistantId: string): number {
+  return PARSER_VERSIONS[assistantId] ?? 1;
+}
+
 function cacheKey(assistantId: string) {
   return `${CACHE_KEY_PREFIX}${assistantId}`;
 }
@@ -105,6 +120,10 @@ function parseCache(raw: string | null, assistantId?: string): CachePayload | nu
     ) {
       return null;
     }
+    // 解析逻辑变更后旧缓存的数值不再可信，丢弃以触发重新导入。
+    if ((parsed.parserVersion ?? 1) !== parserVersionOf(parsed.assistantId)) {
+      return null;
+    }
     return parsed as CachePayload;
   } catch {
     return null;
@@ -127,7 +146,11 @@ function migrateLegacyCache(): CachePayload | null {
 
 function saveCache(payload: CachePayload) {
   try {
-    localStorage.setItem(cacheKey(payload.assistantId), JSON.stringify(payload));
+    const versioned: CachePayload = {
+      ...payload,
+      parserVersion: parserVersionOf(payload.assistantId),
+    };
+    localStorage.setItem(cacheKey(payload.assistantId), JSON.stringify(versioned));
   } catch {
     // Storage full or unavailable — silently ignore.
   }
@@ -157,12 +180,17 @@ function matchesUsageFile(assistantId: string, relativePath: string): boolean {
   }
 }
 
-async function parseUsageFile(assistantId: string, file: File): Promise<DailyEntry[]> {
+async function parseUsageFile(
+  assistantId: string,
+  file: File,
+  /** 跨文件去重集合：恢复/派生的会话会把历史记录复制进新文件 */
+  seen: Set<string>,
+): Promise<DailyEntry[]> {
   switch (assistantId) {
     case 'cursor':
       return parseCursorContent(await file.text());
     case 'claude-code':
-      return parseClaudeCodeContent(await file.text());
+      return parseClaudeCodeContent(await file.text(), seen);
     case 'codex':
       return parseCodexFile(file);
     case 'opencode':
@@ -325,8 +353,10 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // 每次导入共享一个去重集合，收敛跨文件重复的同一次调用
+      const seen = new Set<string>();
       const parsedFiles = await Promise.all(
-        matchedFiles.map((item) => parseUsageFile(assistantId, item.file)),
+        matchedFiles.map((item) => parseUsageFile(assistantId, item.file, seen)),
       );
       const daily = gatherDailyTotals(parsedFiles.flat());
       const now = Date.now();
