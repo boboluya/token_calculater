@@ -1,8 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
-import type { DailyEntry, Granularity } from '@/lib/data';
-import { pickGranularity, resampleEntries } from '@/lib/data';
+import type { DailyEntry } from '@/lib/data';
 import type { AssistantCapabilities } from '@/lib/assistants';
 import ReactECharts from 'echarts-for-react';
 import { connect } from 'echarts';
@@ -371,34 +369,14 @@ function makeActivityChart(
 /*  component                                                          */
 /* ------------------------------------------------------------------ */
 
-/** 桶起始日期 → 轴标签；周/月需要区别于日，避免歧义 */
-const AXIS_LABEL: Record<Granularity, (date: string) => string> = {
-  day: (date) => date.slice(5),
-  week: (date) => `${date.slice(5)} 周`,
-  month: (date) => date.slice(0, 7),
-};
-
-const PERIOD_PREFIX: Record<Granularity, string> = {
-  day: '每日',
-  week: '每周',
-  month: '每月',
-};
+const formatDayLabel = (date: string) => date.slice(5);
 
 /** 同组的图表共享缩放与轴指示器，拖动任意一张其余跟随 */
 const ZOOM_GROUP = 'token-charts';
 
 export function TokenCharts({ data, capabilities }: Props) {
-  const granularity = pickGranularity(data.length);
-  const series = useMemo(
-    () => resampleEntries(data, granularity),
-    [data, granularity],
-  );
-  const labels = useMemo(
-    () => series.map((d) => AXIS_LABEL[granularity](d.date)),
-    [series, granularity],
-  );
+  const labels = data.map((entry) => formatDayLabel(entry.date));
 
-  const period = PERIOD_PREFIX[granularity];
   const activityTitle = capabilities.turns
     ? `${capabilities.callsLabel}与轮次`
     : capabilities.callsLabel;
@@ -413,9 +391,9 @@ export function TokenCharts({ data, capabilities }: Props) {
       className="grid gap-5"
       style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))' }}
     >
-      <ChartCard title={`${period} Token 总量`}>
+      <ChartCard title="每日 Token 总量">
         <ReactECharts
-          option={makeTotalChart(labels, series)}
+          option={makeTotalChart(labels, data)}
           style={{ height: 300 }}
           {...groupProps}
         />
@@ -425,7 +403,7 @@ export function TokenCharts({ data, capabilities }: Props) {
         <>
           <ChartCard title="Token 构成（输入 + 输出 + 缓存命中）">
             <ReactECharts
-              option={makeBreakdownChart(labels, series)}
+              option={makeBreakdownChart(labels, data)}
               style={{ height: 300 }}
               {...groupProps}
             />
@@ -433,7 +411,7 @@ export function TokenCharts({ data, capabilities }: Props) {
 
           <ChartCard title="缓存命中率（%）">
             <ReactECharts
-              option={makeHitRateChart(labels, series)}
+              option={makeHitRateChart(labels, data)}
               style={{ height: 300 }}
               {...groupProps}
             />
@@ -441,7 +419,7 @@ export function TokenCharts({ data, capabilities }: Props) {
 
           <ChartCard title="输入 vs 输出 Token">
             <ReactECharts
-              option={makeInputOutputChart(labels, series)}
+              option={makeInputOutputChart(labels, data)}
               style={{ height: 300 }}
               {...groupProps}
             />
@@ -452,7 +430,7 @@ export function TokenCharts({ data, capabilities }: Props) {
       {(capabilities.calls || capabilities.turns) && (
         <ChartCard title={activityTitle}>
           <ReactECharts
-            option={makeActivityChart(labels, series, capabilities)}
+            option={makeActivityChart(labels, data, capabilities)}
             style={{ height: 300 }}
             {...groupProps}
           />

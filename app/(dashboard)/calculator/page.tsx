@@ -3,9 +3,9 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { DailyEntry } from '@/lib/data';
-import { FolderOpenIcon } from 'lucide-react';
 import { useUsageData } from '../../components/UsageDataProvider';
 import { CostCalculator } from '../../components/CostCalculator';
+import { DataSourceHint } from '../../components/DataSourceHint';
 import { Input } from '../../components/ui/input';
 import { ToggleGroup } from '../../components/ui/toggle-group';
 
@@ -39,7 +39,7 @@ function CalculatorContent() {
   const dateParam = searchParams.get('date');
   const modeParam = searchParams.get('mode');
 
-  const { data, loading, error, directoryName, assistantId, selectDirectory } = useUsageData();
+  const { data, loading, error, aggregationMode, aggregationSources } = useUsageData();
 
   const [isManual, setIsManual] = useState(modeParam === 'manual');
   const [manualTokens, setManualTokens] = useState<Totals>({ input: 0, output: 0, cache: 0 });
@@ -50,6 +50,14 @@ function CalculatorContent() {
   );
 
   const autoTotals = useMemo(() => sumDailyEntries(filtered), [filtered]);
+
+  /** 汇总模式下把参与来源写进文案，避免与单个数据源混淆 */
+  const sourceSuffix = useMemo(() => {
+    if (isManual || !aggregationMode || aggregationSources.length === 0) return '';
+    return ` · 汇总 ${aggregationSources.length} 个来源（${aggregationSources
+      .map((s) => s.name)
+      .join('、')}）`;
+  }, [aggregationMode, aggregationSources, isManual]);
 
   const scope = useMemo(() => {
     if (isManual) {
@@ -65,7 +73,9 @@ function CalculatorContent() {
       return {
         title: `成本估算 — ${dateParam}`,
         label: dateParam,
-        detail: filtered.length ? '单日 Token 用量' : '未找到这一天的数据',
+        detail: filtered.length
+          ? `单日 Token 用量${sourceSuffix}`
+          : '未找到这一天的数据',
         days: filtered.length,
       };
     }
@@ -84,11 +94,13 @@ function CalculatorContent() {
 
     return {
       title: '成本估算',
-      label: `${filtered.length} 天汇总`,
-      detail: `${start} – ${end}`,
+      label: aggregationMode
+        ? `${filtered.length} 天 · ${aggregationSources.length} 个来源汇总`
+        : `${filtered.length} 天汇总`,
+      detail: `${start} – ${end}${sourceSuffix}`,
       days: filtered.length,
     };
-  }, [dateParam, filtered, isManual]);
+  }, [aggregationMode, aggregationSources.length, dateParam, filtered, isManual, sourceSuffix]);
 
   const totals = isManual ? manualTokens : autoTotals;
 
@@ -132,27 +144,7 @@ function CalculatorContent() {
         />
       </div>
 
-      {!isManual && (
-        <div className="text-sm text-gray-500">
-          {directoryName ? (
-            <span>
-              数据来源{' '}
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-700">
-                {directoryName}/...（{assistantId}）
-              </code>
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={selectDirectory}
-              className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
-            >
-              <FolderOpenIcon className="size-3.5" />
-              选择本地目录
-            </button>
-          )}
-        </div>
-      )}
+      {!isManual && <DataSourceHint />}
 
       {isManual && (
         <section

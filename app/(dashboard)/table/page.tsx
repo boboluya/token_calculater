@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DailyEntry } from "@/lib/data";
 import { fmt, fmtFull } from "../../components/SummaryCards";
+import { DataSourceHint } from "../../components/DataSourceHint";
 import { useUsageData } from "../../components/UsageDataProvider";
 import {
   Select,
@@ -166,7 +167,7 @@ function EmptyState({ selectedMonth }: { selectedMonth: string }) {
 }
 
 export default function TablePage() {
-  const { data, loading, error } = useUsageData();
+  const { data, loading, error, aggregationMode, aggregationSources } = useUsageData();
   const [requestedMonth, setRequestedMonth] = useState("");
 
   const months = useMemo(() => {
@@ -240,6 +241,8 @@ export default function TablePage() {
         </Select>
       </div>
 
+      <DataSourceHint />
+
       {monthEntries.length === 0 ? (
         <EmptyState selectedMonth={selectedMonth} />
       ) : (
@@ -282,6 +285,9 @@ export default function TablePage() {
               <CardTitle className="text-sm">每日明细</CardTitle>
               <CardDescription>
                 最新日期在上方，底部保留当前月份合计。
+                {aggregationMode && aggregationSources.length > 0
+                  ? `每行为 ${aggregationSources.length} 个来源当天的合计。`
+                  : ""}
               </CardDescription>
             </CardHeader>
 

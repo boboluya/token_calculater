@@ -71,6 +71,19 @@ interface CachePayload {
   parserVersion?: number;
 }
 
+/** 汇总模式下单个参与来源的概览信息 */
+export interface AggregationSourceInfo {
+  id: string;
+  /** 数据源展示名，缺失时退回 id */
+  name: string;
+  /** 该来源导入时的目录名 */
+  directoryName: string;
+  /** 该来源缓存中的天数 */
+  days: number;
+  /** 该来源缓存的保存时间（Unix ms） */
+  savedAt: number;
+}
+
 export interface UsageDataState {
   data: DailyEntry[];
   directoryName: string | null;
@@ -91,6 +104,11 @@ export interface UsageDataState {
   aggregationMode: boolean;
   /** 汇总模式下勾选的 agent id 列表 */
   aggregationAgentIds: string[];
+  /**
+   * 汇总模式下真正贡献数据的来源；勾选了但没有缓存的 agent 不在其中。
+   * 非汇总模式为空数组。
+   */
+  aggregationSources: AggregationSourceInfo[];
   /** 切换汇总模式 */
   toggleAggregationMode: () => void;
   /** 切换某个 agent 在汇总中的选中状态 */
@@ -450,18 +468,34 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const aggregatedData = useMemo(() => {
-    if (!aggregationMode || !hydrated) return [];
-    const entries = aggregationAgentIds
-      .map((id) => loadCache(id)?.data)
-      .filter((d): d is DailyEntry[] => Array.isArray(d));
-    return entries.length > 0 ? aggregateDailyEntries(entries) : [];
-  }, [aggregationMode, aggregationAgentIds, hydrated]);
+  // savedAt 变化意味着某个数据源刚重新导入，汇总结果需要跟着刷新
+  const aggregation = useMemo(() => {
+    if (!aggregationMode || !hydrated) {
+      return { data: [] as DailyEntry[], sources: [] as AggregationSourceInfo[] };
+    }
+
+    const caches = aggregationAgentIds
+      .map((id) => loadCache(id))
+      .filter((c): c is CachePayload => c != null && c.data.length > 0);
+
+    return {
+      data: caches.length > 0 ? aggregateDailyEntries(caches.map((c) => c.data)) : [],
+      sources: caches.map((c) => ({
+        id: c.assistantId,
+        name: getAssistantSource(c.assistantId)?.name ?? c.assistantId,
+        directoryName: c.directoryName,
+        days: c.data.length,
+        savedAt: c.savedAt,
+      })),
+    };
+    // savedAt 不在闭包里，但它变化代表 localStorage 缓存刚被写过，需要重读
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aggregationMode, aggregationAgentIds, hydrated, savedAt]);
 
   /* ── 对外暴露的 data ── */
   const displayData = useMemo(
-    () => (aggregationMode ? aggregatedData : data),
-    [aggregationMode, aggregatedData, data],
+    () => (aggregationMode ? aggregation.data : data),
+    [aggregationMode, aggregation.data, data],
   );
 
   // 在 hydration 完成前不暴露 data，避免 SSR/CSR 闪烁导致的图表空值问题
@@ -479,6 +513,7 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       ingestDroppedDirectory,
       aggregationMode,
       aggregationAgentIds,
+      aggregationSources: hydrated ? aggregation.sources : [],
       toggleAggregationMode,
       toggleAggregationAgent,
       directoryInput: (
@@ -509,6 +544,7 @@ export function UsageDataProvider({ children }: { children: ReactNode }) {
       ingestDroppedDirectory,
       aggregationMode,
       aggregationAgentIds,
+      aggregation.sources,
       toggleAggregationMode,
       toggleAggregationAgent,
     ],
