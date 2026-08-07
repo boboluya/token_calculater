@@ -9,6 +9,7 @@ import {
 } from "@/lib/pricing/fallback";
 import type {
   PriceCatalog,
+  PriceCurrency,
   PricePreset,
   PricingResponse,
   UnitPrices,
@@ -31,7 +32,7 @@ import {
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
-type Currency = "USD" | "CNY";
+type Currency = PriceCurrency;
 
 interface Totals {
   input: number;
@@ -70,12 +71,12 @@ interface PricingStatus {
 }
 
 interface CachedPricingCatalog {
-  version: 6;
+  version: 7;
   catalog: PriceCatalog;
 }
 
 const DEFAULT_RATE = 6.79;
-const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v6";
+const PRICING_CACHE_KEY = "token-calculator:pricing-catalog:v7";
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   USD: "$",
@@ -214,14 +215,12 @@ function presetToUnitPrices(
   currency: Currency,
   rate: number,
 ): UnitPrices {
-  const multiplier = currency === "USD" ? 1 : rate;
-
-  return {
-    cache: roundPrice(preset.pricesUsdPer1M.cache * multiplier),
-    input: roundPrice(preset.pricesUsdPer1M.input * multiplier),
-    output: roundPrice(preset.pricesUsdPer1M.output * multiplier),
-    cache_write: roundPrice(preset.pricesUsdPer1M.cache_write * multiplier),
-  };
+  return convertUnitPrices(
+    preset.pricing.per1M,
+    preset.pricing.currency,
+    currency,
+    rate,
+  );
 }
 
 function convertUnitPrices(
@@ -299,7 +298,7 @@ function readCachedPriceCatalog(): PriceCatalog | null {
 
     const cached = JSON.parse(raw) as CachedPricingCatalog;
     if (
-      cached.version !== 6 ||
+      cached.version !== 7 ||
       !cached.catalog ||
       typeof cached.catalog.fetchedAt !== "string" ||
       typeof cached.catalog.sourceUrl !== "string" ||
@@ -313,7 +312,9 @@ function readCachedPriceCatalog(): PriceCatalog | null {
           typeof preset.vendor !== "string" ||
           preset.source !== "backend" ||
           typeof preset.provider?.featured !== "boolean" ||
-          !hasValidUnitPrices(preset.pricesUsdPer1M),
+          (preset.pricing?.currency !== "USD" &&
+            preset.pricing?.currency !== "CNY") ||
+          !hasValidUnitPrices(preset.pricing?.per1M),
       )
     ) {
       throw new Error("invalid pricing cache");
@@ -345,7 +346,7 @@ function writeCachedPriceCatalog(catalog: PriceCatalog) {
   try {
     localStorage.setItem(
       PRICING_CACHE_KEY,
-      JSON.stringify({ version: 5, catalog }),
+      JSON.stringify({ version: 7, catalog }),
     );
   } catch {
     // 持久化失败不应覆盖已成功取得的动态价格。
@@ -524,8 +525,13 @@ export function CostCalculator({ totals, scope }: Props) {
     if (nextCurrency === currency) return;
 
     currencyRef.current = nextCurrency;
+    const preset = selectedPresetId
+      ? presetsById.get(selectedPresetId)
+      : undefined;
     setUnitPrices((current) =>
-      convertUnitPrices(current, currency, nextCurrency, rate),
+      preset
+        ? presetToUnitPrices(preset, nextCurrency, rate)
+        : convertUnitPrices(current, currency, nextCurrency, rate),
     );
     setCurrency(nextCurrency);
   };
@@ -550,11 +556,13 @@ export function CostCalculator({ totals, scope }: Props) {
   };
 
   const updateRate = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return;
+
     rateRef.current = value;
     setRate(value);
-    if (selectedPresetId && currency === "CNY") {
+    if (selectedPresetId) {
       const preset = presetsById.get(selectedPresetId);
-      if (preset) setUnitPrices(presetToUnitPrices(preset, "CNY", value));
+      if (preset) setUnitPrices(presetToUnitPrices(preset, currency, value));
     }
   };
 
@@ -670,7 +678,7 @@ export function CostCalculator({ totals, scope }: Props) {
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
         <Panel
           title="选择模型预设"
-          subtitle="预设价格以 USD / 1M tokens 为基准，切换币种时自动换算。"
+          subtitle="预设保留原始报价币种，切换币种时按当前汇率自动换算。"
         >
           <div className="max-h-130 space-y-4 overflow-y-auto pr-1">
             {/* 精选供应商直接展示，其余供应商收纳到下拉框。 */}
@@ -764,7 +772,7 @@ export function CostCalculator({ totals, scope }: Props) {
                       ) : null}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      USD / 1M tokens
+                      原始报价 / 1M tokens
                     </div>
                   </div>
                   {activeVendorGroup.introduction ? (
@@ -797,19 +805,23 @@ export function CostCalculator({ totals, scope }: Props) {
                         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-200/80 pt-3">
                           <PresetPrice
                             label="缓存命中"
-                            value={preset.pricesUsdPer1M.cache}
+                            value={preset.pricing.per1M.cache}
+                            currency={preset.pricing.currency}
                           />
                           <PresetPrice
                             label="输入"
-                            value={preset.pricesUsdPer1M.input}
+                            value={preset.pricing.per1M.input}
+                            currency={preset.pricing.currency}
                           />
                           <PresetPrice
                             label="缓存写入"
-                            value={preset.pricesUsdPer1M.cache_write}
+                            value={preset.pricing.per1M.cache_write}
+                            currency={preset.pricing.currency}
                           />
                           <PresetPrice
                             label="输出"
-                            value={preset.pricesUsdPer1M.output}
+                            value={preset.pricing.per1M.output}
+                            currency={preset.pricing.currency}
                           />
                         </div>
                       </button>
@@ -931,12 +943,20 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PresetPrice({ label, value }: { label: string; value: number }) {
+function PresetPrice({
+  label,
+  value,
+  currency,
+}: {
+  label: string;
+  value: number;
+  currency: Currency;
+}) {
   return (
     <div className="flex items-baseline gap-1.5 font-mono text-xs">
       <span className="text-slate-400">{label}</span>
       <span className="whitespace-nowrap font-medium text-slate-800">
-        {CURRENCY_SYMBOLS.USD}
+        {CURRENCY_SYMBOLS[currency]}
         {formatPrice(value)}
       </span>
     </div>

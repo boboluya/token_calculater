@@ -53,11 +53,14 @@ function preset(
     label,
     vendor,
     source: 'fallback',
-    pricesUsdPer1M: {
-      cache,
-      input,
-      output,
-      cache_write: roundPrice(cacheWrite),
+    pricing: {
+      currency: 'USD',
+      per1M: {
+        cache,
+        input,
+        output,
+        cache_write: roundPrice(cacheWrite),
+      },
     },
   };
 }

@@ -1,4 +1,4 @@
-import type { PriceCatalog, PricePreset, UnitPrices } from './types';
+import type { PriceCatalog, PriceCurrency, PricePreset, UnitPrices } from './types';
 
 const AGGREGATE_PATH = '/model/model_pricing/aggregate';
 export class ModelPricingRequestError extends Error {
@@ -88,7 +88,7 @@ export function parseAggregatePriceCatalog(
 
   const presets = response.data.flatMap((provider) => parseProvider(provider));
   if (!presets.length) {
-    throw new Error('Model pricing response contains no usable USD plans');
+    throw new Error('Model pricing response contains no usable plans');
   }
 
   return {
@@ -167,7 +167,7 @@ function parsePlan(
   const plan = value as AggregatePlan;
   const currency = normalizeCurrency(asText(plan.currency));
   const planType = asText(plan.type) ?? 'default';
-  if (currency !== 'USD' || !isRecord(plan.pricing)) return null;
+  if (!currency || !isRecord(plan.pricing)) return null;
 
   const pricing = plan.pricing as AggregatePricing;
   const prices = parsePrices(pricing);
@@ -179,6 +179,7 @@ function parsePlan(
     provider.providerUrl ?? 'default',
     modelName,
     planType,
+    currency,
   ].map(encodeURIComponent).join(':');
 
   return {
@@ -199,7 +200,10 @@ function parsePlan(
         : {}),
     },
     source: 'backend',
-    pricesUsdPer1M: prices,
+    pricing: {
+      currency,
+      per1M: prices,
+    },
   };
 }
 
@@ -239,11 +243,20 @@ function asSortOrder(value: unknown) {
     : null;
 }
 
-function normalizeCurrency(value: string | null) {
+function normalizeCurrency(value: string | null): PriceCurrency | null {
   if (!value) return null;
 
   const normalized = value.trim().toUpperCase();
-  return normalized === '美元' ? 'USD' : normalized;
+  if (normalized === 'USD' || normalized === '美元') return 'USD';
+  if (
+    normalized === 'CNY' ||
+    normalized === 'RMB' ||
+    normalized === '人民币'
+  ) {
+    return 'CNY';
+  }
+
+  return null;
 }
 
 function asText(value: unknown) {

@@ -83,12 +83,15 @@ function parseModel(model: OpenRouterModel): PricePreset | null {
     label,
     vendor,
     source: 'openrouter',
-    pricesUsdPer1M: roundPrices({
-      cache,
-      input,
-      output,
-      cache_write: cacheWrite,
-    }),
+    pricing: {
+      currency: 'USD',
+      per1M: roundPrices({
+        cache,
+        input,
+        output,
+        cache_write: cacheWrite,
+      }),
+    },
     derived: Object.keys(derived).length ? derived : undefined,
   };
 }

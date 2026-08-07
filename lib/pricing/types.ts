@@ -1,7 +1,13 @@
 export type PriceSource = 'backend' | 'openrouter' | 'fallback';
+export type PriceCurrency = 'USD' | 'CNY';
 export type UsageKind = 'cache' | 'input' | 'output' | 'cache_write';
 
 export type UnitPrices = Record<UsageKind, number>;
+
+export interface PriceAmount {
+  currency: PriceCurrency;
+  per1M: UnitPrices;
+}
 
 export interface ProviderMetadata {
   name: string;
@@ -19,7 +25,7 @@ export interface PricePreset {
   label: string;
   vendor: string;
   provider?: ProviderMetadata;
-  pricesUsdPer1M: UnitPrices;
+  pricing: PriceAmount;
   source: PriceSource;
   derived?: Partial<Record<UsageKind, string>>;
 }
